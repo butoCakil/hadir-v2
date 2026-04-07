@@ -1,0 +1,84 @@
+# ==========================================
+# OPTIMALKAN PERFORMA
+# ==========================================
+
+Options -Indexes
+Options -MultiViews
+
+# ==========================================
+# ROUTING — semua request ke index.php
+# kecuali file/folder yang benar-benar ada
+# ==========================================
+
+RewriteEngine On
+
+# Jika request adalah file atau folder yang ada, sajikan langsung
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Semua request lain → index.php
+RewriteRule ^ index.php [QSA,L]
+
+# ==========================================
+# KEAMANAN — blokir akses file sensitif
+# ==========================================
+
+# Blokir akses ke file .env, .git, composer, dll
+<FilesMatch "(^\.env|\.git|composer\.(json|lock)|package\.json|\.htaccess)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Blokir akses ke file PHP di folder assets
+<FilesMatch "\.php$">
+    <If "%{REQUEST_URI} =~ m#^/assets/#">
+        Order Allow,Deny
+        Deny from all
+    </If>
+</FilesMatch>
+
+# ==========================================
+# SECURITY HEADERS
+# ==========================================
+
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header unset X-Powered-By
+    Header unset Server
+</IfModule>
+
+# ==========================================
+# FORCE HTTPS
+# ==========================================
+
+<IfModule mod_rewrite.c>
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# ==========================================
+# CACHE ASSETS (CSS, JS, IMG)
+# ==========================================
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css             "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png            "access plus 1 month"
+    ExpiresByType image/jpg            "access plus 1 month"
+    ExpiresByType image/jpeg           "access plus 1 month"
+    ExpiresByType image/gif            "access plus 1 month"
+    ExpiresByType image/svg+xml        "access plus 1 month"
+    ExpiresByType image/x-icon         "access plus 1 year"
+</IfModule>
+
+# ==========================================
+# KOMPRES OUTPUT
+# ==========================================
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript
+</IfModule>

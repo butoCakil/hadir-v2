@@ -1,0 +1,38 @@
+[05-Apr-2026 04:45:50 Asia/Jakarta] [SIMULATOR ERROR] SQLSTATE[23000]: Integrity constraint violation: 1048 Column 'link' cannot be null
+[05-Apr-2026 04:46:13 Asia/Jakarta] [SIMULATOR ERROR] SQLSTATE[23000]: Integrity constraint violation: 1048 Column 'link' cannot be null
+[05-Apr-2026 04:50:24 Asia/Jakarta] [SIMULATOR ERROR] SQLSTATE[23000]: Integrity constraint violation: 1048 Column 'link' cannot be null
+[05-Apr-2026 04:50:33 Asia/Jakarta] [SIMULATOR ERROR] SQLSTATE[23000]: Integrity constraint violation: 1048 Column 'link' cannot be null
+[05-Apr-2026 05:28:58 Asia/Jakarta] [SIMULATOR ERROR] Class "App\Api\Handlers\BatalHandler" not found
+[05-Apr-2026 05:29:05 Asia/Jakarta] [SIMULATOR ERROR] Class "App\Api\Handlers\BatalHandler" not found
+[05-Apr-2026 05:59:48 Asia/Jakarta] [SIMULATOR ERROR] Class "App\Api\WabotHandler" not found
+[05-Apr-2026 06:00:51 Asia/Jakarta] [SIMULATOR ERROR] Class "App\Api\WabotHandler" not found
+[05-Apr-2026 06:01:15 Asia/Jakarta] [SIMULATOR ERROR] Call to undefined method App\Models\WabotSessionModel::getPendingPresensi()
+[05-Apr-2026 06:01:34 Asia/Jakarta] [SIMULATOR ERROR] Class "App\Api\WabotHandler" not found
+[05-Apr-2026 06:01:39 Asia/Jakarta] [SIMULATOR ERROR] Class "App\Api\WabotHandler" not found
+[05-Apr-2026 06:04:51 Asia/Jakarta] [SIMULATOR ERROR] Call to undefined method App\Models\WabotSessionModel::getPendingPresensi()
+[05-Apr-2026 06:04:55 Asia/Jakarta] [SIMULATOR ERROR] Call to undefined method App\Models\WabotSessionModel::getPendingPresensi()
+[05-Apr-2026 12:40:46 Asia/Jakarta] [SIMULATOR ERROR] App\Api\WabotHandler::simpanTmp(): Argument #1 ($number) must be of type string, null given, called in /home/dvttaulx/pkl/app/Api/WabotHandler.php on line 96
+[05-Apr-2026 12:41:45 Asia/Jakarta] [SIMULATOR ERROR] App\Api\WabotHandler::simpanTmp(): Argument #1 ($number) must be of type string, null given, called in /home/dvttaulx/pkl/app/Api/WabotHandler.php on line 96
+[05-Apr-2026 12:43:02 Asia/Jakarta] [SIMULATOR ERROR] App\Api\WabotHandler::simpanTmp(): Argument #1 ($number) must be of type string, null given, called in /home/dvttaulx/pkl/app/Api/WabotHandler.php on line 96
+[05-Apr-2026 16:56:22 Asia/Jakarta] [SIMULATOR ERROR] App\Api\WabotHandler::simpanTmp(): Argument #1 ($number) must be of type string, null given, called in /home/dvttaulx/pkl/app/Api/WabotHandler.php on line 96
+[05-Apr-2026 18:33:58 Asia/Jakarta] PHP Deprecated:  Using ${expr} (variable variables) in strings is deprecated, use {${expr}} instead in /home/dvttaulx/pkl/app/Views/presensi/index.php on line 410
+[05-Apr-2026 18:33:58 Asia/Jakarta] PHP Deprecated:  Using ${var} in strings is deprecated, use {$var} instead in /home/dvttaulx/pkl/app/Views/presensi/index.php on line 411
+[05-Apr-2026 18:33:58 Asia/Jakarta] PHP Deprecated:  Using ${var} in strings is deprecated, use {$var} instead in /home/dvttaulx/pkl/app/Views/presensi/index.php on line 411
+[05-Apr-2026 18:33:58 Asia/Jakarta] [500] Undefined constant "this" in /home/dvttaulx/pkl/app/Views/presensi/index.php:411
+[05-Apr-2026 19:28:57 Asia/Jakarta] [VIEW] File tidak ditemukan: /home/dvttaulx/pkl/app/Views/cek/index.php
+[06-Apr-2026 14:25:51 Asia/Jakarta] PHP Warning:  session_name(): Session name cannot be changed after headers have already been sent in /home/dvttaulx/pkl/app/Core/Auth.php on line 19
+[06-Apr-2026 14:25:51 Asia/Jakarta] PHP Warning:  session_set_cookie_params(): Session cookie parameters cannot be changed after headers have already been sent in /home/dvttaulx/pkl/app/Core/Auth.php on line 21
+[06-Apr-2026 14:25:51 Asia/Jakarta] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/dvttaulx/pkl/app/Core/Auth.php on line 29
+[06-Apr-2026 14:25:51 Asia/Jakarta] PHP Warning:  session_regenerate_id(): Session ID cannot be regenerated when there is no active session in /home/dvttaulx/pkl/app/Core/Auth.php on line 42
+[06-Apr-2026 14:25:58 Asia/Jakarta] PHP Warning:  session_name(): Session name cannot be changed after headers have already been sent in /home/dvttaulx/pkl/app/Core/Auth.php on line 19
+[06-Apr-2026 14:25:58 Asia/Jakarta] PHP Warning:  session_set_cookie_params(): Session cookie parameters cannot be changed after headers have already been sent in /home/dvttaulx/pkl/app/Core/Auth.php on line 21
+[06-Apr-2026 14:25:58 Asia/Jakarta] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/dvttaulx/pkl/app/Core/Auth.php on line 29
+[06-Apr-2026 14:25:58 Asia/Jakarta] PHP Warning:  session_regenerate_id(): Session ID cannot be regenerated when there is no active session in /home/dvttaulx/pkl/app/Core/Auth.php on line 42
+[06-Apr-2026 15:35:15 Asia/Jakarta] PHP Warning:  Undefined variable $router in /home/dvttaulx/public_html/dev/index.php on line 113
+[06-Apr-2026 15:35:15 Asia/Jakarta] PHP Fatal error:  Uncaught Error: Call to a member function get() on null in /home/dvttaulx/public_html/dev/index.php:113
+Stack trace:
+#0 {main}
+  thrown in /home/dvttaulx/public_html/dev/index.php on line 113
+[06-Apr-2026 15:38:48 Asia/Jakarta] PHP Deprecated:  rtrim(): Passing null to parameter #1 ($string) of type string is deprecated in /home/dvttaulx/pkl/app/Core/Router.php on line 53
+[06-Apr-2026 15:52:00 Asia/Jakarta] [500] syntax error, unexpected token "public", expecting end of file in /home/dvttaulx/pkl/app/Controllers/ManageController.php:365
+[06-Apr-2026 15:52:12 Asia/Jakarta] [500] syntax error, unexpected token "public", expecting end of file in /home/dvttaulx/pkl/app/Controllers/ManageController.php:365
