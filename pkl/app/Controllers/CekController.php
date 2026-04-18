@@ -47,6 +47,14 @@ class CekController
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
+        $periodeAktif = $db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        
+        // Tambah filter periode ke $where
+        $where[]  = "d.periode_id = ?";
+        $params[] = $periodeId;
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+        
         $siswaList = $db->query(
             "SELECT d.nis, d.nama, d.kelas, d.nohp,
                     p.nama_pembimbing, p.nama_dudika
@@ -66,9 +74,9 @@ class CekController
             $rows = $db->query(
                 "SELECT nis, DATE(timestamp) as tgl, ket, link, statuslink
                  FROM presensi
-                 WHERE nis IN ($in) AND DATE(timestamp) >= ?
+                 WHERE nis IN ($in) AND DATE(timestamp) >= ? AND periode_id = ?
                  ORDER BY timestamp ASC",
-                array_merge($nisList, [$tgl7])
+                array_merge($nisList, [$tgl7, $periodeId])
             );
             foreach ($rows as $r) {
                 $presensiMap[$r['nis']][$r['tgl']] = $r;
@@ -85,8 +93,8 @@ class CekController
                     SUM(CASE WHEN LOWER(ket)='izin'  THEN 1 ELSE 0 END) as izin,
                     SUM(CASE WHEN LOWER(ket)='sakit' THEN 1 ELSE 0 END) as sakit,
                     SUM(CASE WHEN LOWER(ket)='libur' THEN 1 ELSE 0 END) as libur
-                 FROM presensi WHERE nis IN ($in) GROUP BY nis",
-                $nisList
+                 FROM presensi WHERE nis IN ($in) AND periode_id = ? GROUP BY nis",
+                array_merge($nisList, [$periodeId])
             );
             foreach ($rows as $r) {
                 $rekapMap[$r['nis']] = $r;
@@ -193,10 +201,14 @@ class CekController
         );
 
         // ── Presensi hari ini ──
-        $hariIni = $db->queryOne(
-            "SELECT ket, timestamp FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
-            [$nis, date('Y-m-d')]
-        );
+        $today   = date('Y-m-d');
+        $hariIni = null;
+        if ($today >= $tanggalMulai && $today <= $tanggalAkhir) {
+            $hariIni = $db->queryOne(
+                "SELECT ket, timestamp FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
+                [$nis, $today]
+            );
+        }
 
         $viewMode = $_GET['view'] ?? 'kalender';
 

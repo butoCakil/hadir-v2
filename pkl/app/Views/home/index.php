@@ -86,6 +86,10 @@ $extraCss = <<<CSS
 .wa-stat-item { display:flex; flex-direction:column; align-items:center; gap:0.15rem; }
 .wa-stat-num  { font-size:1.4rem; font-weight:800; color:var(--green); line-height:1; }
 .wa-stat-lbl  { font-size:0.65rem; color:var(--text3); text-transform:uppercase; letter-spacing:0.04em; }
+
+.hero-btns { display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap; margin-top:1.5rem; }
+@media (max-width:540px) { .hero-btns { flex-direction:column; align-items:stretch; } }
+@media (max-width:540px) { .hero-btns a { justify-content:center; } }
 </style>
 CSS;
 ?>
@@ -105,8 +109,8 @@ CSS;
         </div>
     </div>
     <!-- Tombol utama -->
-    <div style="margin-top:1.5rem;display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
-        <a href="https://wa.me/<?= htmlspecialchars($waBotNumber) ?>?text=masuk"
+    <div class="hero-btns">
+        <a href="https://wa.me/<?= htmlspecialchars($waBotNumber) ?>?text=info"
            target="_blank" class="btn-wa">
             <i class="fa-brands fa-whatsapp"></i> Presensi WA
         </a>
@@ -114,6 +118,12 @@ CSS;
            style="cursor:pointer;opacity:1;"
            title="Segera hadir">
             <i class="fa-solid fa-globe"></i> Presensi Web
+        </a>
+        <a href="/panduan"
+           style="display:inline-flex;align-items:center;gap:0.5rem;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:0.65rem 1.25rem;font-size:0.9rem;font-weight:600;text-decoration:none;transition:all 0.15s;"
+           onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
+           onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">
+            <i class="fa-solid fa-book-open"></i> Panduan
         </a>
     </div>
 </div>

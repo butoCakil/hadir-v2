@@ -23,22 +23,27 @@ class ManageController
     {
         $pembimbing = $this->db->query("SELECT * FROM datapembimbing ORDER BY nama ASC");
         $walikelas  = $this->db->query("SELECT * FROM datawalikelas ORDER BY kelas ASC");
-        $dudika     = $this->db->query(
-            "SELECT DISTINCT nama_dudika, alamat_dudika, nomor_telepon_dudika, nama_pembimbing
-             FROM penempatan ORDER BY nama_dudika ASC"
+        $dudika = $this->db->query(
+            "SELECT * FROM datadudi ORDER BY nama ASC"
         );
 
-        $totalSiswa      = (int)($this->db->queryOne("SELECT COUNT(*) as n FROM datasiswa")['n'] ?? 0);
+        $periodeAktif    = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId       = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        
+        $totalSiswa      = (int)($this->db->queryOne("SELECT COUNT(*) as n FROM datasiswa WHERE periode_id = ?", [$periodeId])['n'] ?? 0);
         $totalPembimbing = count($pembimbing);
         $totalWalikelas  = count($walikelas);
         $totalDudika     = count($dudika);
 
+        $periode = $this->db->query("SELECT * FROM periode_pkl ORDER BY tanggal_mulai DESC");
+        
         Response::view('manage/index', [
             'title'           => 'Manage Data',
             'user'            => Auth::user(),
             'pembimbing'      => $pembimbing,
             'walikelas'       => $walikelas,
             'dudika'          => $dudika,
+            'periode'         => $periode,
             'totalSiswa'      => $totalSiswa,
             'totalPembimbing' => $totalPembimbing,
             'totalWalikelas'  => $totalWalikelas,
@@ -87,15 +92,20 @@ class ManageController
     // ==========================================
     public function updateDudika(): void
     {
-        $oldNama = trim($_POST['old_nama'] ?? '');
-        $field   = $_POST['field'] ?? '';
-        $value   = trim($_POST['value'] ?? '');
-
-        if (!$oldNama || !in_array($field, ['nama_dudika','alamat_dudika','nomor_telepon_dudika','nama_pembimbing'])) {
+        $id    = (int)($_POST['id'] ?? 0);
+        $field = $_POST['field'] ?? '';
+        $value = trim($_POST['value'] ?? '');
+    
+        $allowedFields = ['nama','alamat','link_map','nomor_telepon','nama_owner','nama_pembimbing','keterangan'];
+        if (!$id || !in_array($field, $allowedFields)) {
             Response::error('Field tidak valid', 400); return;
         }
-
-        $this->db->query("UPDATE penempatan SET `$field` = ? WHERE nama_dudika = ?", [$value, $oldNama]);
+    
+        if (in_array($field, ['nomor_telepon'])) {
+            $value = preg_replace('/\D/', '', $value);
+        }
+    
+        $this->db->query("UPDATE datadudi SET `$field` = ? WHERE id = ?", [$value, $id]);
         Response::success(['value' => $value], 'Berhasil diperbarui');
     }
 
@@ -110,6 +120,9 @@ class ManageController
         if (!file_exists($autoload)) { Response::error('PhpSpreadsheet tidak ditemukan.', 500); return; }
         require_once $autoload;
 
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        
         if (empty($_FILES['file']['tmp_name'])) { Response::error('File tidak ditemukan.', 400); return; }
 
         $ext = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
@@ -175,11 +188,22 @@ class ManageController
 
             // 1. Upsert datasiswa
             if ($namaSiswa && $kelas) {
-                if ($this->db->queryOne("SELECT id FROM datasiswa WHERE nis = ?", [$nis])) {
-                    $this->db->query("UPDATE datasiswa SET nama=?,kelas=? WHERE nis=?", [$namaSiswa,$kelas,$nis]);
+                if ($this->db->queryOne("SELECT id FROM datasiswa WHERE nis = ? AND periode_id = ?", [$nis, $periodeId])) {
+                    $this->db->query("UPDATE datasiswa SET nama=?,kelas=? WHERE nis=? AND periode_id=?", [$namaSiswa,$kelas,$nis,$periodeId]);
                     $siswaStat['updated']++;
                 } else {
-                    $this->db->query("INSERT INTO datasiswa (nis,nama,kelas) VALUES (?,?,?)", [$nis,$namaSiswa,$kelas]);
+                    // Ambil nohp dari periode sebelumnya jika ada
+                    $sisweLama = $this->db->queryOne(
+                        "SELECT nohp, encryp FROM datasiswa WHERE nis = ? AND nohp IS NOT NULL AND nohp != '' ORDER BY periode_id DESC LIMIT 1",
+                        [$nis]
+                    );
+                    $nohpBawa  = $sisweLama['nohp']  ?? null;
+                    $encrypBawa = $sisweLama['encryp'] ?? null;
+                
+                    $this->db->query(
+                        "INSERT INTO datasiswa (nis,nama,kelas,periode_id,nohp,encryp) VALUES (?,?,?,?,?,?)",
+                        [$nis,$namaSiswa,$kelas,$periodeId,$nohpBawa,$encrypBawa]
+                    );
                     $siswaStat['inserted']++;
                 }
             } else {
@@ -188,16 +212,16 @@ class ManageController
 
             // 2. Upsert penempatan
             if ($lastDudika && $lastPembimbing) {
-                if ($this->db->queryOne("SELECT id FROM penempatan WHERE nis_siswa = ?", [$nis])) {
+                if ($this->db->queryOne("SELECT id FROM penempatan WHERE nis_siswa = ? AND periode_id = ?", [$nis, $periodeId])) {
                     $this->db->query(
-                        "UPDATE penempatan SET nama_siswa=?,kelas=?,nama_dudika=?,alamat_dudika=?,nomor_telepon_dudika=?,nama_pembimbing=? WHERE nis_siswa=?",
-                        [$namaSiswa,$kelas,$lastDudika,$lastAlamat,$lastTelp,$lastPembimbing,$nis]
+                        "UPDATE penempatan SET nama_siswa=?,kelas=?,nama_dudika=?,alamat_dudika=?,nomor_telepon_dudika=?,nama_pembimbing=? WHERE nis_siswa=? AND periode_id=?",
+                        [$namaSiswa,$kelas,$lastDudika,$lastAlamat,$lastTelp,$lastPembimbing,$nis,$periodeId]
                     );
                     $penempatanStat['updated']++;
                 } else {
                     $this->db->query(
-                        "INSERT INTO penempatan (nama_siswa,nis_siswa,kelas,nama_dudika,alamat_dudika,nomor_telepon_dudika,nama_pembimbing) VALUES (?,?,?,?,?,?,?)",
-                        [$namaSiswa,$nis,$kelas,$lastDudika,$lastAlamat,$lastTelp,$lastPembimbing]
+                        "INSERT INTO penempatan (periode_id,nama_siswa,nis_siswa,kelas,nama_dudika,alamat_dudika,nomor_telepon_dudika,nama_pembimbing) VALUES (?,?,?,?,?,?,?,?)",
+                        [$periodeId,$namaSiswa,$nis,$kelas,$lastDudika,$lastAlamat,$lastTelp,$lastPembimbing]
                     );
                     $penempatanStat['inserted']++;
                 }
@@ -273,12 +297,14 @@ class ManageController
     // ==========================================
     public function sinkronSiswaPreview(): void
     {
-        $penempatan = $this->db->query("SELECT nis_siswa, nama_siswa, kelas FROM penempatan");
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        $penempatan   = $this->db->query("SELECT nis_siswa, nama_siswa, kelas FROM penempatan WHERE periode_id = ?", [$periodeId]);
         $changes    = [];
         $noMatch    = [];
 
         foreach ($penempatan as $p) {
-            $siswa = $this->db->queryOne("SELECT nis, nama, kelas FROM datasiswa WHERE nis = ?", [$p['nis_siswa']]);
+            $siswa = $this->db->queryOne("SELECT nis, nama, kelas FROM datasiswa WHERE nis = ? AND periode_id = ?", [$p['nis_siswa'], $periodeId]);;
             if (!$siswa) { $noMatch[] = ['nis'=>$p['nis_siswa'],'nama'=>$p['nama_siswa']]; continue; }
 
             $diff = [];
@@ -299,15 +325,17 @@ class ManageController
     // ==========================================
     public function sinkronSiswaExec(): void
     {
-        $penempatan = $this->db->query("SELECT nis_siswa, nama_siswa, kelas FROM penempatan");
-        $updated    = 0;
-
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        $penempatan   = $this->db->query("SELECT nis_siswa, nama_siswa, kelas FROM penempatan WHERE periode_id = ?", [$periodeId]);
+        $updated      = 0;
+        
         foreach ($penempatan as $p) {
-            $siswa = $this->db->queryOne("SELECT nis, nama, kelas FROM datasiswa WHERE nis = ?", [$p['nis_siswa']]);
+            $siswa = $this->db->queryOne("SELECT nis, nama, kelas FROM datasiswa WHERE nis = ? AND periode_id = ?", [$p['nis_siswa'], $periodeId]);
             if (!$siswa) continue;
-
+        
             if (trim($siswa['nama']) !== trim($p['nama_siswa']) || trim($siswa['kelas']) !== trim($p['kelas'])) {
-                $this->db->query("UPDATE datasiswa SET nama=?,kelas=? WHERE nis=?", [$p['nama_siswa'],$p['kelas'],$p['nis_siswa']]);
+                $this->db->query("UPDATE datasiswa SET nama=?,kelas=? WHERE nis=? AND periode_id=?", [$p['nama_siswa'],$p['kelas'],$p['nis_siswa'],$periodeId]);
                 $updated++;
             }
         }
@@ -437,5 +465,282 @@ class ManageController
 
         \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx')->save('php://output');
         exit;
+    }
+    
+    // ==========================================
+    // POST /manage/periode-tambah
+    // ==========================================
+    public function periodeTambah(): void
+    {
+        $nama   = trim($_POST['nama_periode'] ?? '');
+        $mulai  = trim($_POST['tanggal_mulai'] ?? '');
+        $selesai= trim($_POST['tanggal_selesai'] ?? '');
+    
+        if (!$nama || !$mulai || !$selesai) {
+            Response::error('Semua field wajib diisi.', 400); return;
+        }
+        if ($selesai <= $mulai) {
+            Response::error('Tanggal selesai harus setelah tanggal mulai.', 400); return;
+        }
+    
+        // Cek nama duplikat
+        $existing = $this->db->queryOne("SELECT id FROM periode_pkl WHERE nama_periode = ?", [$nama]);
+        if ($existing) {
+            Response::error('Nama periode sudah ada.', 409); return;
+        }
+    
+        $this->db->query(
+            "INSERT INTO periode_pkl (nama_periode, tanggal_mulai, tanggal_selesai, aktif) VALUES (?, ?, ?, 0)",
+            [$nama, $mulai, $selesai]
+        );
+    
+        Response::success([], 'Periode berhasil ditambahkan.');
+    }
+    
+    // ==========================================
+    // POST /manage/periode-aktifkan
+    // ==========================================
+    public function periodeAktifkan(): void
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) {
+            Response::error('ID tidak valid.', 400); return;
+        }
+    
+        $periode = $this->db->queryOne("SELECT id FROM periode_pkl WHERE id = ?", [$id]);
+        if (!$periode) {
+            Response::error('Periode tidak ditemukan.', 404); return;
+        }
+    
+        // Non-aktifkan semua, lalu aktifkan yang dipilih
+        $this->db->query("UPDATE periode_pkl SET aktif = 0");
+        $this->db->query("UPDATE periode_pkl SET aktif = 1 WHERE id = ?", [$id]);
+    
+        Response::success([], 'Periode aktif berhasil diperbarui.');
+    }
+    
+    // ==========================================
+    // POST /manage/periode-hapus
+    // ==========================================
+    public function periodeHapus(): void
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) {
+            Response::error('ID tidak valid.', 400); return;
+        }
+    
+        // Cek apakah periode aktif
+        $periode = $this->db->queryOne("SELECT aktif FROM periode_pkl WHERE id = ?", [$id]);
+        if (!$periode) {
+            Response::error('Periode tidak ditemukan.', 404); return;
+        }
+        if ($periode['aktif']) {
+            Response::error('Tidak bisa menghapus periode yang sedang aktif.', 400); return;
+        }
+    
+        // Cek apakah ada data presensi/siswa yang terikat
+        $adaPresensi = $this->db->queryOne("SELECT COUNT(*) as n FROM presensi WHERE periode_id = ?", [$id]);
+        $adaSiswa    = $this->db->queryOne("SELECT COUNT(*) as n FROM datasiswa WHERE periode_id = ?", [$id]);
+        if (($adaPresensi['n'] ?? 0) > 0 || ($adaSiswa['n'] ?? 0) > 0) {
+            Response::error('Tidak bisa menghapus periode yang sudah memiliki data presensi/siswa.', 400); return;
+        }
+    
+        $this->db->query("DELETE FROM periode_pkl WHERE id = ?", [$id]);
+        Response::success([], 'Periode berhasil dihapus.');
+    }
+    
+    // ==========================================
+    // POST /manage/sinkron-dudi-preview
+    // ==========================================
+    public function sinkronDudiPreview(): void
+    {
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+    
+        // DUDI unik dari penempatan periode aktif
+        $dudiPenempatan = $this->db->query(
+            "SELECT DISTINCT p.nama_dudika, p.alamat_dudika, p.nomor_telepon_dudika, p.nama_pembimbing
+             FROM penempatan p
+             INNER JOIN datasiswa ds ON ds.nis = p.nis_siswa AND ds.periode_id = ?
+             WHERE p.nama_dudika IS NOT NULL AND p.nama_dudika != ''
+             ORDER BY p.nama_dudika ASC",
+            [$periodeId]
+        );
+    
+        // DUDI yang sudah ada di datadudi
+        $dudiExisting = $this->db->query("SELECT nama FROM datadudi");
+        $namaExisting = array_column($dudiExisting, 'nama');
+    
+        $baru    = [];
+        $sudahAda = 0;
+        foreach ($dudiPenempatan as $d) {
+            if (in_array($d['nama_dudika'], $namaExisting)) {
+                $sudahAda++;
+            } else {
+                $baru[] = $d;
+            }
+        }
+    
+        Response::success([
+            'baru'      => $baru,
+            'jumlah_baru' => count($baru),
+            'sudah_ada'   => $sudahAda,
+        ], count($baru) === 0
+            ? 'Semua DUDI sudah tersinkron.'
+            : count($baru) . ' DUDI baru ditemukan.'
+        );
+    }
+    
+    // ==========================================
+    // POST /manage/sinkron-dudi-exec
+    // ==========================================
+    public function sinkronDudiExec(): void
+    {
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+    
+        $dudiPenempatan = $this->db->query(
+            "SELECT DISTINCT p.nama_dudika, p.alamat_dudika, p.nomor_telepon_dudika, p.nama_pembimbing
+             FROM penempatan p
+             INNER JOIN datasiswa ds ON ds.nis = p.nis_siswa AND ds.periode_id = ?
+             WHERE p.nama_dudika IS NOT NULL AND p.nama_dudika != ''",
+            [$periodeId]
+        );
+    
+        $dudiExisting = $this->db->query("SELECT nama FROM datadudi");
+        $namaExisting = array_column($dudiExisting, 'nama');
+    
+        $inserted = 0;
+        foreach ($dudiPenempatan as $d) {
+            if (in_array($d['nama_dudika'], $namaExisting)) continue;
+    
+            // Generate kode dari nama: "AD PRO AUDIO" → "AD-PRO-AUDIO"
+            $kode = strtoupper(preg_replace('/\s+/', '-', trim($d['nama_dudika'])));
+            $kode = preg_replace('/[^A-Z0-9\-]/', '', $kode);
+    
+            $this->db->query(
+                "INSERT INTO datadudi (nama, kode, alamat, nomor_telepon, nama_pembimbing)
+                 VALUES (?, ?, ?, ?, ?)",
+                [
+                    $d['nama_dudika'],
+                    $kode,
+                    $d['alamat_dudika'] ?? '',
+                    preg_replace('/\D/', '', $d['nomor_telepon_dudika'] ?? ''),
+                    $d['nama_pembimbing'] ?? '',
+                ]
+            );
+            $inserted++;
+        }
+    
+        Response::success(['inserted' => $inserted], "$inserted DUDI berhasil ditambahkan.");
+    }
+    
+    // ==========================================
+    // POST /manage/cek-duplikat-dudi
+    // ==========================================
+    public function cekDuplikatDudi(): void
+    {
+        $semuaDudi = $this->db->query("
+            SELECT dd.id, dd.nama, dd.kode, dd.alamat, dd.nomor_telepon, dd.nama_pembimbing,
+                   COUNT(DISTINCT pen.nis_siswa) as jumlah_siswa
+            FROM datadudi dd
+            LEFT JOIN penempatan pen ON pen.nama_dudika COLLATE utf8mb4_general_ci = dd.nama
+            GROUP BY dd.id, dd.nama, dd.kode, dd.alamat, dd.nomor_telepon, dd.nama_pembimbing
+            ORDER BY dd.nama ASC
+        ");
+        $duplikat  = [];
+        $sudahCek  = [];
+    
+        foreach ($semuaDudi as $i => $a) {
+            foreach ($semuaDudi as $j => $b) {
+                if ($i >= $j) continue;
+    
+                $pairKey = min($a['id'], $b['id']) . '-' . max($a['id'], $b['id']);
+                if (isset($sudahCek[$pairKey])) continue;
+                $sudahCek[$pairKey] = true;
+    
+                similar_text(strtolower($a['nama']), strtolower($b['nama']), $pct);
+                if ($pct >= 75) {
+                    $duplikat[] = [
+                        'a'   => $a,
+                        'b'   => $b,
+                        'pct' => round($pct),
+                    ];
+                }
+            }
+        }
+    
+        // Urutkan dari paling mirip
+        usort($duplikat, fn($x, $y) => $y['pct'] <=> $x['pct']);
+    
+        Response::success([
+            'duplikat' => $duplikat,
+            'jumlah'   => count($duplikat),
+        ], count($duplikat) === 0
+            ? 'Tidak ditemukan DUDI yang mirip.'
+            : count($duplikat) . ' pasang DUDI terindikasi duplikat.'
+        );
+    }
+    
+    // ==========================================
+    // POST /manage/merge-dudi
+    // pertahankan id_keep, hapus id_remove
+    // ==========================================
+    public function mergeDudi(): void
+    {
+        $idKeep   = (int)($_POST['id_keep']   ?? 0);
+        $idRemove = (int)($_POST['id_remove'] ?? 0);
+    
+        if (!$idKeep || !$idRemove || $idKeep === $idRemove) {
+            Response::error('ID tidak valid.', 400); return;
+        }
+    
+        $keep   = $this->db->queryOne("SELECT * FROM datadudi WHERE id = ?", [$idKeep]);
+        $remove = $this->db->queryOne("SELECT * FROM datadudi WHERE id = ?", [$idRemove]);
+    
+        if (!$keep || !$remove) {
+            Response::error('Data tidak ditemukan.', 404); return;
+        }
+    
+        // Update penempatan yang pakai nama DUDI yang dihapus → ganti ke nama yang dipertahankan
+        $this->db->query(
+            "UPDATE penempatan SET nama_dudika = ? WHERE nama_dudika = ?",
+            [$keep['nama'], $remove['nama']]
+        );
+    
+        // Hapus DUDI duplikat
+        $this->db->query("DELETE FROM datadudi WHERE id = ?", [$idRemove]);
+    
+        Response::success([], "DUDI \"{$remove['nama']}\" berhasil digabung ke \"{$keep['nama']}\".");
+    }
+    
+    // ==========================================
+    // POST /manage/periode-edit
+    // ==========================================
+    public function periodeEdit(): void
+    {
+        $id      = (int)($_POST['id'] ?? 0);
+        $nama    = trim($_POST['nama_periode'] ?? '');
+        $mulai   = trim($_POST['tanggal_mulai'] ?? '');
+        $selesai = trim($_POST['tanggal_selesai'] ?? '');
+    
+        if (!$id || !$nama || !$mulai || !$selesai) {
+            Response::error('Semua field wajib diisi.', 400); return;
+        }
+        if ($selesai <= $mulai) {
+            Response::error('Tanggal selesai harus setelah tanggal mulai.', 400); return;
+        }
+    
+        $periode = $this->db->queryOne("SELECT id FROM periode_pkl WHERE id = ?", [$id]);
+        if (!$periode) {
+            Response::error('Periode tidak ditemukan.', 404); return;
+        }
+    
+        $this->db->query(
+            "UPDATE periode_pkl SET nama_periode = ?, tanggal_mulai = ?, tanggal_selesai = ? WHERE id = ?",
+            [$nama, $mulai, $selesai, $id]
+        );
+    
+        Response::success([], 'Periode berhasil diperbarui.');
     }
 }

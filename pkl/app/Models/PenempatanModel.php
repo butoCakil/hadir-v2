@@ -13,61 +13,39 @@ class PenempatanModel
         $this->db = Database::getInstance();
     }
 
-    // ==========================================
-    // PENEMPATAN
-    // ==========================================
+    private function getPeriodeId(): int
+    {
+        $p = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        return $p ? (int)$p['id'] : 0;
+    }
 
-    /**
-     * Ambil semua data penempatan + info siswa
-     * Opsional filter by nama_dudika atau nama_pembimbing
-     */
     public function getAll(string $dudika = '', string $pembimbing = ''): array
     {
+        $periodeId = $this->getPeriodeId();
         $sql = "
             SELECT
-                p.id,
-                p.nis_siswa,
-                p.nama_siswa,
-                p.kelas,
-                p.nama_dudika,
-                p.alamat_dudika,
-                p.nomor_telepon_dudika,
-                p.nama_pembimbing,
+                p.id, p.nis_siswa, p.nama_siswa, p.kelas,
+                p.nama_dudika, p.alamat_dudika, p.nomor_telepon_dudika, p.nama_pembimbing,
                 ds.nohp AS nohp_siswa,
                 pb.nohp AS nohp_pembimbing
             FROM penempatan p
-            LEFT JOIN datasiswa ds ON p.nis_siswa = ds.nis
+            LEFT JOIN datasiswa ds ON p.nis_siswa = ds.nis AND ds.periode_id = ?
             LEFT JOIN datapembimbing pb ON p.nama_pembimbing = pb.nama
+            WHERE ds.nis IS NOT NULL
         ";
+        $params = [$periodeId];
 
-        $conditions = [];
-        $params     = [];
-
-        if (!empty($dudika)) {
-            $conditions[] = "p.nama_dudika = ?";
-            $params[]     = $dudika;
-        }
-
-        if (!empty($pembimbing)) {
-            $conditions[] = "p.nama_pembimbing = ?";
-            $params[]     = $pembimbing;
-        }
-
-        if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(' AND ', $conditions);
-        }
+        if (!empty($dudika))     { $sql .= " AND p.nama_dudika = ?";     $params[] = $dudika; }
+        if (!empty($pembimbing)) { $sql .= " AND p.nama_pembimbing = ?"; $params[] = $pembimbing; }
 
         $sql .= " ORDER BY p.nama_dudika ASC, p.nama_siswa ASC";
-
         return $this->db->query($sql, $params);
     }
 
-    /**
-     * Rekap per DUDIKA — total siswa, sudah/belum WA
-     */
     public function getRekapPerDudika(): array
     {
-        $rows = $this->db->query("
+        $periodeId = $this->getPeriodeId();
+        return $this->db->query("
             SELECT
                 p.nama_dudika,
                 p.nama_pembimbing,
@@ -76,44 +54,36 @@ class PenempatanModel
                 SUM(CASE WHEN ds.nohp IS NOT NULL AND ds.nohp != '' THEN 1 ELSE 0 END) AS sudah_wa,
                 SUM(CASE WHEN ds.nohp IS NULL OR ds.nohp = '' THEN 1 ELSE 0 END) AS belum_wa
             FROM penempatan p
-            LEFT JOIN datasiswa ds ON p.nis_siswa = ds.nis
+            INNER JOIN datasiswa ds ON p.nis_siswa = ds.nis AND ds.periode_id = ?
             LEFT JOIN datapembimbing pb ON p.nama_pembimbing = pb.nama
             GROUP BY p.nama_dudika, p.nama_pembimbing, pb.nohp
             ORDER BY p.nama_dudika ASC
-        ");
-
-        return $rows;
+        ", [$periodeId]);
     }
 
-    /**
-     * Ambil daftar DUDIKA unik (untuk filter dropdown)
-     */
     public function getListDudika(): array
     {
+        $periodeId = $this->getPeriodeId();
         return $this->db->query("
-            SELECT DISTINCT nama_dudika
-            FROM penempatan
-            WHERE nama_dudika IS NOT NULL AND nama_dudika != ''
-            ORDER BY nama_dudika ASC
-        ");
+            SELECT DISTINCT p.nama_dudika
+            FROM penempatan p
+            INNER JOIN datasiswa ds ON p.nis_siswa = ds.nis AND ds.periode_id = ?
+            WHERE p.nama_dudika IS NOT NULL AND p.nama_dudika != ''
+            ORDER BY p.nama_dudika ASC
+        ", [$periodeId]);
     }
 
-    /**
-     * Ambil daftar pembimbing unik (untuk filter dropdown)
-     */
     public function getListPembimbing(): array
     {
+        $periodeId = $this->getPeriodeId();
         return $this->db->query("
-            SELECT DISTINCT nama_pembimbing
-            FROM penempatan
-            WHERE nama_pembimbing IS NOT NULL AND nama_pembimbing != ''
-            ORDER BY nama_pembimbing ASC
-        ");
+            SELECT DISTINCT p.nama_pembimbing
+            FROM penempatan p
+            INNER JOIN datasiswa ds ON p.nis_siswa = ds.nis AND ds.periode_id = ?
+            WHERE p.nama_pembimbing IS NOT NULL AND p.nama_pembimbing != ''
+            ORDER BY p.nama_pembimbing ASC
+        ", [$periodeId]);
     }
-
-    // ==========================================
-    // DATADUDI
-    // ==========================================
 
     public function getAllDudi(): array
     {
@@ -121,19 +91,12 @@ class PenempatanModel
             SELECT d.*, COUNT(p.id) AS jumlah_siswa
             FROM datadudi d
             LEFT JOIN penempatan p ON d.nama = p.nama_dudika
-            GROUP BY d.id
-            ORDER BY d.nama ASC
+            GROUP BY d.id ORDER BY d.nama ASC
         ");
     }
 
-    // ==========================================
-    // WALIKELAS
-    // ==========================================
-
     public function getAllWalikelas(): array
     {
-        return $this->db->query("
-            SELECT * FROM datawalikelas ORDER BY kelas ASC
-        ");
+        return $this->db->query("SELECT * FROM datawalikelas ORDER BY kelas ASC");
     }
 }

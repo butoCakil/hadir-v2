@@ -1,8 +1,11 @@
 <?php
-
 namespace App\Controllers;
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 use App\Core\Auth;
+use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
 use App\Models\PresensiModel;
@@ -99,5 +102,137 @@ class PresensiController
             'listKelas'        => $listKelas,
             'listPembimbing'   => $listPembimbing,
         ]);
+    }
+    
+    // ==========================================
+    // POST /presensi/input
+    // ==========================================
+    public function input(): void
+    {
+        Auth::required();
+    
+        $nis        = trim($_POST['nis']        ?? '');
+        $tanggalDari= trim($_POST['tanggal_dari'] ?? '');
+        $tanggalSampai = trim($_POST['tanggal_sampai'] ?? '');
+        $ket        = trim($_POST['ket']        ?? '');
+        $catatan    = trim($_POST['catatan']    ?? '');
+        
+        if (!$nis || !$tanggalDari || !$tanggalSampai || !$ket) {
+            Response::error('Data tidak lengkap.', 400); return;
+        }
+        if ($tanggalSampai < $tanggalDari) {
+            Response::error('Tanggal akhir tidak boleh sebelum tanggal awal.', 400); return;
+        }
+        
+        $validKet = ['Masuk','Izin','Sakit','Libur'];
+        if (!in_array($ket, $validKet)) {
+            Response::error('Keterangan tidak valid.', 400); return;
+        }
+        
+        $db = Database::getInstance();
+        
+        $siswa = $db->queryOne(
+            "SELECT nis, nama, kelas FROM datasiswa WHERE nis = ? LIMIT 1", [$nis]
+        );
+        if (!$siswa) {
+            Response::error('Siswa tidak ditemukan.', 404); return;
+        }
+        
+        $periodeAktif = $db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
+        
+        // Loop setiap tanggal dalam range
+        $inserted = 0;
+        $skipped  = [];
+        $cur      = strtotime($tanggalDari);
+        $end      = strtotime($tanggalSampai);
+        
+        while ($cur <= $end) {
+            $tgl = date('Y-m-d', $cur);
+        
+            $sudah = $db->queryOne(
+                "SELECT id FROM presensi WHERE nis = ? AND DATE(timestamp) = ?",
+                [$nis, $tgl]
+            );
+        
+            if (!$sudah) {
+                $db->query(
+                    "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+                     VALUES (?, ?, ?, ?, ?, ?, '', '', 'ADMIN', ?)",
+                    [$periodeId, $nis, $siswa['nama'], $siswa['kelas'], $ket, $catatan, $tgl . ' ' . date('H:i:s')]
+                );
+                $inserted++;
+            } else {
+                $skipped[] = date('d/m', $cur);
+            }
+        
+            $cur = strtotime('+1 day', $cur);
+        }
+        
+        $pesan = "$inserted presensi berhasil disimpan.";
+        if (!empty($skipped)) {
+            $pesan .= ' Dilewati (sudah ada): ' . implode(', ', $skipped) . '.';
+        }
+        
+        Response::success(['inserted' => $inserted, 'skipped' => $skipped], $pesan);
+    }
+    
+    // ==========================================
+    // POST /presensi/edit
+    // ==========================================
+    public function edit(): void
+    {
+        Auth::required();
+    
+        $id      = (int)($_POST['id']      ?? 0);
+        $ket     = trim($_POST['ket']      ?? '');
+        $catatan = trim($_POST['catatan']  ?? '');
+    
+        if (!$id || !$ket) {
+            Response::error('Data tidak lengkap.', 400); return;
+        }
+    
+        $validKet = ['Masuk','Izin','Sakit','Libur'];
+        if (!in_array($ket, $validKet)) {
+            Response::error('Keterangan tidak valid.', 400); return;
+        }
+    
+        $db = Database::getInstance();
+    
+        $presensi = $db->queryOne("SELECT id FROM presensi WHERE id = ?", [$id]);
+        if (!$presensi) {
+            Response::error('Data presensi tidak ditemukan.', 404); return;
+        }
+    
+        $db->query(
+            "UPDATE presensi SET ket = ?, catatan = ? WHERE id = ?",
+            [$ket, $catatan, $id]
+        );
+    
+        Response::success(['ket' => $ket, 'catatan' => $catatan], 'Presensi berhasil diperbarui.');
+    }
+    
+    // ==========================================
+    // POST /presensi/hapus
+    // ==========================================
+    public function hapus(): void
+    {
+        Auth::required();
+    
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) {
+            Response::error('ID tidak valid.', 400); return;
+        }
+    
+        $db = Database::getInstance();
+    
+        $presensi = $db->queryOne("SELECT id, link FROM presensi WHERE id = ?", [$id]);
+        if (!$presensi) {
+            Response::error('Data presensi tidak ditemukan.', 404); return;
+        }
+    
+        $db->query("DELETE FROM presensi WHERE id = ?", [$id]);
+    
+        Response::success([], 'Presensi berhasil dihapus.');
     }
 }

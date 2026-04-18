@@ -304,7 +304,20 @@ CSS;
                             <a href="<?= htmlspecialchars($p['link']) ?>" target="_blank" style="color:var(--blue);font-size:0.9rem;"><i class="fa-solid fa-image"></i></a>
                         <?php else: ?><span style="color:var(--text3);">—</span><?php endif; ?>
                     </td>
-                    <td>
+                    <td style="white-space:nowrap;">
+                        <?php if ($ket === 'kosong'): ?>
+                        <button onclick="bukaModalInput('<?= htmlspecialchars($p['nis'],ENT_QUOTES) ?>','<?= htmlspecialchars($p['namasiswa'],ENT_QUOTES) ?>','<?= $tanggal ?>')"
+                                style="background:var(--green-bg);color:var(--green);border:1px solid rgba(34,197,94,0.2);border-radius:6px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.78rem;margin-right:0.25rem;"
+                                title="Input presensi">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                        <?php else: ?>
+                        <button onclick="bukaModalEdit(<?= $p['id'] ?>,'<?= htmlspecialchars($p['ket'],ENT_QUOTES) ?>','<?= htmlspecialchars($p['catatan']??'',ENT_QUOTES) ?>','<?= htmlspecialchars($p['namasiswa'],ENT_QUOTES) ?>')"
+                                style="background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,0.2);border-radius:6px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.78rem;margin-right:0.25rem;"
+                                title="Edit presensi">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <?php endif; ?>
                         <a href="/siswa/<?= urlencode($p['nis']) ?>" class="btn-detail-siswa" title="Detail">
                             <i class="fa-solid fa-arrow-up-right-from-square"></i>
                         </a>
@@ -391,6 +404,63 @@ CSS;
 <?php endif; ?>
 <?php endif; ?>
 
+<!-- Modal Presensi Admin -->
+<div class="modal-overlay" id="modalPresensi" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.5rem;width:100%;max-width:400px;">
+        <h3 id="modalPresensiTitle" style="margin:0 0 1.25rem;font-size:0.95rem;font-weight:700;"></h3>
+        <input type="hidden" id="modalPresensiId">
+        <input type="hidden" id="modalPresensiNis">
+        <input type="hidden" id="modalPresensiTanggal">
+        <div id="wrapTanggalRange" style="margin-bottom:0.85rem;display:none;">
+            <label style="font-size:0.72rem;font-weight:600;color:var(--text3);display:block;margin-bottom:0.3rem;">Rentang Tanggal</label>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                <input type="date" id="modalTanggalDari"
+                       style="padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:0.82rem;">
+                <span style="font-size:0.78rem;color:var(--text3);">s/d</span>
+                <input type="date" id="modalTanggalSampai"
+                       style="padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:0.82rem;">
+            </div>
+            <div style="font-size:0.7rem;color:var(--text3);margin-top:0.3rem;">Untuk 1 hari, isi tanggal yang sama di keduanya.</div>
+        </div>
+
+        <div style="margin-bottom:0.85rem;">
+            <label style="font-size:0.72rem;font-weight:600;color:var(--text3);display:block;margin-bottom:0.3rem;">Keterangan</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <?php foreach (['Masuk','Izin','Sakit','Libur'] as $k):
+                    $colors = ['Masuk'=>'--green','Izin'=>'--yellow','Sakit'=>'--orange','Libur'=>'--text2'];
+                    $c = $colors[$k];
+                ?>
+                <label style="cursor:pointer;">
+                    <input type="radio" name="modalKet" value="<?= $k ?>" style="display:none;" class="ket-radio">
+                    <span class="ket-radio-btn" data-ket="<?= $k ?>"
+                          style="display:inline-block;padding:0.35rem 0.85rem;border-radius:20px;font-size:0.78rem;font-weight:600;border:2px solid var(--border);color:var(--text2);cursor:pointer;transition:all 0.15s;">
+                        <?= $k ?>
+                    </span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:0.72rem;font-weight:600;color:var(--text3);display:block;margin-bottom:0.3rem;">Catatan</label>
+            <input type="text" id="modalCatatan" placeholder="Opsional..."
+                   style="width:100%;padding:0.45rem 0.65rem;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:0.83rem;">
+        </div>
+
+        <div class="result-box" id="modalPresensiResult" style="margin-bottom:0.75rem;"></div>
+
+        <div style="display:flex;gap:0.75rem;align-items:center;">
+            <button class="btn-app btn-primary-app" onclick="simpanPresensiAdmin()">
+                <i class="fa-solid fa-floppy-disk"></i> Simpan
+            </button>
+            <button class="btn-app" id="btnHapusPresensi" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,0.2);" onclick="hapusPresensiAdmin()">
+                <i class="fa-solid fa-trash"></i> Hapus
+            </button>
+            <button class="btn-app btn-ghost" onclick="tutupModalPresensi()">Batal</button>
+        </div>
+    </div>
+</div>
+
 <?php
 $content = ob_get_clean();
 $extraJs = <<<'JS'
@@ -417,6 +487,150 @@ $(function () {
             window.location.href = url.toString();
         });
     }
+});
+
+// ── Presensi Admin ────────────────────────────────────────
+const ketColors = {
+    'Masuk': 'var(--green)', 'Izin': 'var(--yellow)',
+    'Sakit': 'var(--orange)', 'Libur': 'var(--text2)'
+};
+
+document.querySelectorAll('.ket-radio').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.querySelectorAll('.ket-radio-btn').forEach(btn => {
+            btn.style.borderColor = 'var(--border)';
+            btn.style.color       = 'var(--text2)';
+            btn.style.background  = 'transparent';
+        });
+        const btn = this.nextElementSibling;
+        const color = ketColors[this.value] || 'var(--blue)';
+        btn.style.borderColor = color;
+        btn.style.color       = color;
+        btn.style.background  = color.replace(')', '-bg)').replace('var(', 'var(');
+    });
+});
+
+function bukaModalInput(nis, nama, tanggal) {
+    document.getElementById('modalPresensiTitle').textContent = '+ Input Presensi — ' + nama;
+    document.getElementById('modalPresensiId').value      = '';
+    document.getElementById('modalPresensiNis').value     = nis;
+    document.getElementById('modalPresensiTanggal').value = tanggal;
+    document.getElementById('modalTanggalDari').value     = tanggal;
+    document.getElementById('modalTanggalSampai').value   = tanggal;
+    document.getElementById('modalCatatan').value         = '';
+    document.getElementById('modalPresensiResult').style.display  = 'none';
+    document.getElementById('btnHapusPresensi').style.display     = 'none';
+    document.getElementById('wrapTanggalRange').style.display     = 'block';
+    document.querySelectorAll('.ket-radio').forEach(r => r.checked = false);
+    document.querySelectorAll('.ket-radio-btn').forEach(b => {
+        b.style.borderColor = 'var(--border)';
+        b.style.color       = 'var(--text2)';
+        b.style.background  = 'transparent';
+    });
+    document.getElementById('modalPresensi').style.display = 'flex';
+}
+
+function bukaModalEdit(id, ket, catatan, nama) {
+    document.getElementById('modalPresensiTitle').textContent = '✏️ Edit Presensi — ' + nama;
+    document.getElementById('modalPresensiId').value      = id;
+    document.getElementById('modalPresensiNis').value     = '';
+    document.getElementById('modalPresensiTanggal').value = '';
+    document.getElementById('modalCatatan').value         = catatan;
+    document.getElementById('modalPresensiResult').style.display = 'none';
+    document.getElementById('btnHapusPresensi').style.display    = 'inline-flex';
+
+    // Set radio
+    document.querySelectorAll('.ket-radio').forEach(r => {
+        r.checked = (r.value === ket);
+        if (r.checked) r.dispatchEvent(new Event('change'));
+    });
+
+    document.getElementById('modalPresensi').style.display = 'flex';
+    document.getElementById('wrapTanggalRange').style.display = 'none';
+}
+
+function tutupModalPresensi() {
+    document.getElementById('modalPresensi').style.display = 'none';
+}
+
+function simpanPresensiAdmin() {
+    const id      = document.getElementById('modalPresensiId').value;
+    const nis     = document.getElementById('modalPresensiNis').value;
+    const tanggal = document.getElementById('modalPresensiTanggal').value;
+    const catatan = document.getElementById('modalCatatan').value;
+    const res     = document.getElementById('modalPresensiResult');
+    const ketEl   = document.querySelector('.ket-radio:checked');
+
+    if (!ketEl) {
+        res.className = 'result-box error'; res.innerHTML = '❌ Pilih keterangan terlebih dahulu.'; res.style.display = 'block'; return;
+    }
+
+    const ket = ketEl.value;
+    const isEdit = !!id;
+    const url  = isEdit ? '/presensi/edit' : '/presensi/input';
+
+    const fd = new FormData();
+    fd.append('ket', ket);
+    fd.append('catatan', catatan);
+    if (isEdit) fd.append('id', id);
+    else {
+        fd.append('nis', nis);
+        fd.append('tanggal_dari',   document.getElementById('modalTanggalDari').value);
+        fd.append('tanggal_sampai', document.getElementById('modalTanggalSampai').value);
+    }
+
+    fetch(url, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                res.className = 'result-box success';
+                res.innerHTML = '✅ ' + data.message;
+                res.style.display = 'block';
+                setTimeout(() => { tutupModalPresensi(); location.reload(); }, 800);
+            } else {
+                res.className = 'result-box error';
+                res.innerHTML = '❌ ' + data.message;
+                res.style.display = 'block';
+            }
+        })
+        .catch(() => {
+            res.className = 'result-box error';
+            res.innerHTML = '❌ Gagal menghubungi server.';
+            res.style.display = 'block';
+        });
+}
+
+function hapusPresensiAdmin() {
+    const id  = document.getElementById('modalPresensiId').value;
+    const res = document.getElementById('modalPresensiResult');
+
+    if (!confirm('Hapus presensi ini?')) return;
+
+    const fd = new FormData();
+    fd.append('id', id);
+
+    fetch('/presensi/hapus', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                tutupModalPresensi();
+                location.reload();
+            } else {
+                res.className = 'result-box error';
+                res.innerHTML = '❌ ' + data.message;
+                res.style.display = 'block';
+            }
+        })
+        .catch(() => {
+            res.className = 'result-box error';
+            res.innerHTML = '❌ Gagal menghubungi server.';
+            res.style.display = 'block';
+        });
+}
+
+// Tutup modal klik luar
+document.getElementById('modalPresensi').addEventListener('click', function(e) {
+    if (e.target === this) tutupModalPresensi();
 });
 </script>
 JS;

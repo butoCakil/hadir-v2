@@ -10,8 +10,10 @@ $navItems   = [
     ['href' => '/siswa',      'label' => 'Siswa',      'icon' => 'fa-users',       'key' => 'siswa'],
     ['href' => '/penempatan', 'label' => 'Penempatan', 'icon' => 'fa-building',    'key' => 'penempatan'],
     ['href' => '/presensi',   'label' => 'Presensi',   'icon' => 'fa-clipboard-check', 'key' => 'presensi'],
+    ['href' => '/manage',      'label' => 'Manage Data', 'icon' => 'fa-database', 'key' => 'manage'],
+    ['href' => '/pengaturan',  'label' => 'Pengaturan',  'icon' => 'fa-gear',     'key' => 'pengaturan'],
+    ['href' => '/logs', 'label' => 'Logs', 'icon' => 'fa-terminal', 'key' => 'logs'],
     ['href' => '/simulator',  'label' => 'Simulator',  'icon' => 'fa-comments',    'key' => 'simulator'],
-    ['href' => '/manage',    'label' => 'Manage Data', 'icon' => 'fa-database',     'key' => 'manage'],
 ];
 ?>
 <!DOCTYPE html>
@@ -67,7 +69,7 @@ $navItems   = [
             </span>
 
             <!-- Logout -->
-            <a href="/logout" class="btn-logout">
+            <a href="/logout?redirect=/home" class="btn-logout">
                 <i class="fa-solid fa-right-from-bracket"></i>
                 <span>Logout</span>
             </a>

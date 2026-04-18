@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Response;
 use App\Core\Auth;
+use App\Api\Helpers\PeriodeHelper;
 
 class PresensiWebController
 {
@@ -108,6 +109,12 @@ class PresensiWebController
             Response::error('Tanggal tidak boleh melebihi hari ini.', 400); return;
         }
 
+        // Cek periode
+        $cekPeriode = PeriodeHelper::cekTanggalValid($tanggalYmd);
+        if (!$cekPeriode['valid']) {
+            Response::error($cekPeriode['pesan'], 400); return;
+        }
+        
         // Cek presensi sudah ada di tanggal itu
         $sudah = $this->db->queryOne(
             "SELECT id FROM presensi WHERE nis = ? AND DATE(timestamp) = ?",
@@ -120,11 +127,9 @@ class PresensiWebController
 
         // Mode lupa — validasi batas 2x/hari
         if ($mode === 'lupa' && $tanggalYmd !== $today) {
-            $minTanggal = '2025-07-17';
-            $kemarin    = date('Y-m-d', strtotime('-1 day'));
-
-            if ($tanggalYmd < $minTanggal || $tanggalYmd > $kemarin) {
-                Response::error('Tanggal tidak valid untuk lupa presensi.', 400); return;
+            $cekPeriode = PeriodeHelper::cekTanggalValid($tanggalYmd);
+            if (!$cekPeriode['valid']) {
+                Response::error($cekPeriode['pesan'], 400); return;
             }
 
             $lupaKey  = 'lupa_' . $nis . '_' . $today;
@@ -181,12 +186,16 @@ class PresensiWebController
             ? date('Y-m-d H:i:s')
             : $tanggalYmd . ' 08:00:00';
 
+        // Ambil periode aktif
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? $periodeAktif['id'] : null;
+        
         // Simpan presensi
         $kode = '';
         $this->db->query(
-            "INSERT INTO presensi (nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [$nis, $siswa['nama'], $siswa['kelas'], $ket, $catatan,
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [$periodeId, $nis, $siswa['nama'], $siswa['kelas'], $ket, $catatan,
              $fotoLink ?? '', $statusLink ?? '', $kode, $timestamp]
         );
 

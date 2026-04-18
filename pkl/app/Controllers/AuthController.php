@@ -90,6 +90,7 @@ class AuthController
     public function logout(): void
     {
         Auth::logout();
-        Response::redirect('/login');
+        // Response::redirect('/home');
+        Response::redirect('https://pklbos.smknbansari.sch.id');
     }
 }

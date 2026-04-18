@@ -4,6 +4,7 @@ namespace App\Api\Handlers;
 
 use App\Core\Database;
 use App\Api\WaSender;
+use App\Api\Helpers\PeriodeHelper;
 use App\Models\WabotSessionModel;
 
 class LupaHandler
@@ -39,10 +40,12 @@ class LupaHandler
     public function handle(string $number, string $pushName, string $message, ?string $mediaUrl): ?string
     {
         // Cek siswa terdaftar
-        $nohp0  = WaSender::normalisasi62ke0($number);
-        $siswa  = $this->db->queryOne(
-            "SELECT nis, nama, kelas FROM datasiswa WHERE nohp = ? OR nohp = ? OR encryp = ? LIMIT 1",
-            [$nohp0, $number, $number]
+        $nohp0        = WaSender::normalisasi62ke0($number);
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        $siswa        = $this->db->queryOne(
+            "SELECT nis, nama, kelas FROM datasiswa WHERE (nohp = ? OR nohp = ? OR encryp = ?) AND periode_id = ? LIMIT 1",
+            [$nohp0, $number, $number, $periodeId]
         );
 
         if (!$siswa) {
@@ -88,10 +91,16 @@ class LupaHandler
         if ($tanggal === date('Y-m-d')) {
             return "⚠️ Fitur *Lupa Absen* hanya untuk *hari sebelumnya*, bukan hari ini.";
         }
-
+        
         // Tidak boleh untuk masa depan
         if ($tanggal > date('Y-m-d')) {
             return "⚠️ Tanggal tidak valid. Tidak bisa presensi untuk tanggal yang akan datang.";
+        }
+        
+        // Cek periode + toleransi
+        $cekPeriode = PeriodeHelper::cekTanggalValid($tanggal);
+        if (!$cekPeriode['valid']) {
+            return "🚫 *Lupa Absen gagal.*\n\n" . $cekPeriode['pesan'];
         }
 
         // Cek sudah presensi di tanggal itu
@@ -114,11 +123,15 @@ class LupaHandler
         $kode      = 'L' . strtoupper(substr(md5($nis . $tanggal . time()), 0, 5));
         $timestamp = $tanggal . ' ' . date('H:i:s');
 
+        // Ambil periode aktif
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? $periodeAktif['id'] : null;
+        
         // Simpan presensi
         $this->db->execute(
-            "INSERT INTO presensi (nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [$nis, $nama, $kelas, ucfirst($ketRaw), $catatan ?: '', $mediaUrl ?: '', 'OK', $kode, $timestamp]
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [$periodeId, $nis, $nama, $kelas, ucfirst($ketRaw), $catatan ?: '', $mediaUrl ?: '', 'OK', $kode, $timestamp]
         );
 
         // Increment rate limit

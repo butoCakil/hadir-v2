@@ -8,12 +8,17 @@ class Response
     // Redirect
     // ==========================================
 
-    public static function redirect(string $path): void
+   public static function redirect(string $path): void
     {
+        // Kalau sudah URL lengkap, langsung redirect
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            header('Location: ' . $path);
+            exit;
+        }
+    
         $config = require BASE_PATH . '/config/app.php';
         $base   = rtrim($config['url'], '/');
         $path   = '/' . ltrim($path, '/');
-
         header('Location: ' . $base . $path);
         exit;
     }

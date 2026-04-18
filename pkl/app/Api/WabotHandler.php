@@ -216,7 +216,7 @@ class WabotHandler
         }
 
         // ── 12. Batal presensi ──
-        if (str_starts_with($msgLower, 'batal')) {
+        if (str_starts_with($msgLower, 'batal') || str_starts_with($msgLower, 'hapus')) {
             return $this->batal->handle($number, $pushName, $message);
         }
 
@@ -302,7 +302,7 @@ class WabotHandler
         // Kasus 1: Sudah ada foto di pending, user kirim teks keterangan
         if (!empty($pending['foto']) && empty($status) && !empty($message)) {
             $parts  = explode(" ", $message, 2);
-            $status = strtolower(preg_replace("/[^a-z]/", "", $parts[0]));
+            $status = strtolower(preg_replace("/[^a-zA-Z]/", "", $parts[0]));
             $catatan = isset($parts[1]) ? trim($parts[1]) : '';
             $ketValid = ['masuk', 'izin', 'sakit', 'libur'];
 
@@ -312,11 +312,14 @@ class WabotHandler
                 return "🚫 *Keterangan presensi* `$status` *tidak valid!*\n\n📌 Gunakan salah satu:\n- `masuk`\n- `izin`\n- `sakit`\n- `libur`";
             }
 
-            $kode = $this->generateKode();
-            $foto = $pending['foto'];
+            $kode         = $this->generateKode();
+            $foto         = $pending['foto'];
+            $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+            $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
             $this->db->execute(
-                "INSERT INTO presensi (nis, namasiswa, kelas, ket, catatan, link, kode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [$nis, $nama, $kelas, $status, $catatan, $foto, $kode]
+                "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'OK', ?, NOW())",
+                [$periodeId, $nis, $nama, $kelas, $status, $catatan, $foto, $kode]
             );
             $this->session->clearPendingPresensi($number);
             $this->jalankanProseschat($nis, $kode, $foto);
@@ -327,10 +330,13 @@ class WabotHandler
         if (empty($pending['foto']) && !empty($mediaUrl)) {
             if (!empty($status)) {
                 // Status sudah ada → langsung insert
-                $kode = $this->generateKode();
+                $kode         = $this->generateKode();
+                $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+                $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
                 $this->db->execute(
-                    "INSERT INTO presensi (nis, namasiswa, kelas, ket, catatan, link, kode) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    [$nis, $nama, $kelas, $status, $catatan, $mediaUrl, $kode]
+                    "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 'OK', ?, NOW())",
+                    [$periodeId, $nis, $nama, $kelas, $status, $catatan, $mediaUrl, $kode]
                 );
                 $this->session->clearPendingPresensi($number);
                 $this->jalankanProseschat($nis, $kode, $mediaUrl);
@@ -570,9 +576,11 @@ class WabotHandler
             return "✅ Presensi tanggal $waktu sudah tercatat sebelumnya.";
         }
 
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
         $this->db->execute(
-            "INSERT INTO presensi (nis, namasiswa, kelas, ket, catatan, link, kode, timestamp) VALUES (?, ?, ?, 'libur', '', '', '', ?)",
-            [$nis, $nama, $kelas, $ts]
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp) VALUES (?, ?, ?, ?, 'libur', '', '', '', 'AUTO', ?)",
+            [$periodeId, $nis, $nama, $kelas, $ts]
         );
 
         $tanggal = date('Y-m-d');

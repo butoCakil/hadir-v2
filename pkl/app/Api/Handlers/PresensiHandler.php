@@ -4,6 +4,7 @@ namespace App\Api\Handlers;
 
 use App\Core\Database;
 use App\Api\WaSender;
+use App\Api\Helpers\PeriodeHelper;
 use App\Models\WabotSessionModel;
 
 class PresensiHandler
@@ -71,6 +72,12 @@ class PresensiHandler
                 . "Jadi, tidak perlu presensi ulang ya. Terima kasih! 🙌";
         }
 
+        // ── Cek periode ──
+        $cekPeriode = PeriodeHelper::cekTanggalValid($tanggal);
+        if (!$cekPeriode['valid']) {
+            return "🚫 *Presensi gagal.*\n\n" . $cekPeriode['pesan'];
+        }
+        
         // ── masuk tanpa foto → minta foto dulu (pending presensi) ──
         if ($status === 'masuk' && empty($mediaUrl)) {
             $pending = [
@@ -97,11 +104,14 @@ class PresensiHandler
         // ── masuk dengan foto → langsung simpan ──
         $kode = $this->generateKode();
         $link = $mediaUrl ?: '';
-
+        
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? $periodeAktif['id'] : null;
+        
         $this->db->execute(
-            "INSERT INTO presensi (nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-            [$nis, $nama, $kelas, ucfirst($status), $catatan, $link, $link ? 'OK' : 'NOFOTO', $kode]
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+            [$periodeId, $nis, $nama, $kelas, ucfirst($status), $catatan, $link, $link ? 'OK' : 'NOFOTO', $kode]
         );
 
         // Jalankan proseschat untuk upload foto ke Google Drive
@@ -114,11 +124,15 @@ class PresensiHandler
 
     private function getSiswaByNohp(string $number): array|false
     {
-        $nohp0  = WaSender::normalisasi62ke0($number);
-        $nohp62 = WaSender::normalisasi0ke62($number);
+        $nohp0        = WaSender::normalisasi62ke0($number);
+        $nohp62       = WaSender::normalisasi0ke62($number);
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+    
         return $this->db->queryOne(
-            "SELECT nis, nama, kelas FROM datasiswa WHERE nohp = ? OR nohp = ? OR encryp = ? LIMIT 1",
-            [$nohp0, $nohp62, $number]
+            "SELECT nis, nama, kelas FROM datasiswa
+             WHERE (nohp = ? OR nohp = ? OR encryp = ?) AND periode_id = ? LIMIT 1",
+            [$nohp0, $nohp62, $number, $periodeId]
         ) ?: false;
     }
 

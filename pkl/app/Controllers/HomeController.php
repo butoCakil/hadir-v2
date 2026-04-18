@@ -17,20 +17,24 @@ class HomeController
         \App\Core\Auth::start();
         $isLoggedIn = \App\Core\Auth::check();
 
+        // ── Periode aktif ──
+        $periodeAktif = $db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        
         // ── Stat cards ──
-        $totalSiswa      = (int)($db->queryOne("SELECT COUNT(*) as n FROM datasiswa")['n'] ?? 0);
-        $sudahWa         = (int)($db->queryOne("SELECT COUNT(*) as n FROM datasiswa WHERE nohp IS NOT NULL AND nohp != ''")['n'] ?? 0);
+        $totalSiswa      = (int)($db->queryOne("SELECT COUNT(*) as n FROM datasiswa WHERE periode_id = ?", [$periodeId])['n'] ?? 0);
+        $sudahWa         = (int)($db->queryOne("SELECT COUNT(*) as n FROM datasiswa WHERE periode_id = ? AND nohp IS NOT NULL AND nohp != ''", [$periodeId])['n'] ?? 0);
         $belumWa         = $totalSiswa - $sudahWa;
-        $totalDudika     = (int)($db->queryOne("SELECT COUNT(DISTINCT nama_dudika) as n FROM penempatan")['n'] ?? 0);
+        $totalDudika     = (int)($db->queryOne("SELECT COUNT(DISTINCT p.nama_dudika) as n FROM penempatan p INNER JOIN datasiswa ds ON ds.nis = p.nis_siswa WHERE ds.periode_id = ?", [$periodeId])['n'] ?? 0);
         $totalPembimbing = (int)($db->queryOne("SELECT COUNT(*) as n FROM datapembimbing")['n'] ?? 0);
         $hadirHariIni    = (int)($db->queryOne(
-            "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ?", [$today]
+            "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ? AND periode_id = ?", [$today, $periodeId]
         )['n'] ?? 0);
 
         // ── Status detail hari ini ──
         $statusRows = $db->query(
-            "SELECT LOWER(ket) as ket, COUNT(*) as n FROM presensi WHERE DATE(timestamp) = ? GROUP BY ket",
-            [$today]
+            "SELECT LOWER(ket) as ket, COUNT(*) as n FROM presensi WHERE DATE(timestamp) = ? AND periode_id = ? GROUP BY ket",
+            [$today, $periodeId]
         );
         $statMap = ['masuk'=>0,'izin'=>0,'sakit'=>0,'libur'=>0];
         foreach ($statusRows as $r) {
@@ -46,8 +50,8 @@ class HomeController
         for ($i = 6; $i >= 0; $i--) {
             $tgl    = date('Y-m-d', strtotime("-$i days"));
             $dowTgl = (int)date('N', strtotime($tgl));
-            $n      = (int)($db->queryOne(
-                "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ?", [$tgl]
+            $n = (int)($db->queryOne(
+                "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ? AND periode_id = ?", [$tgl, $periodeId]
             )['n'] ?? 0);
             $chartLabels[] = date('d/m', strtotime($tgl));
             $chartData[]   = $n;
@@ -147,10 +151,10 @@ class HomeController
                     pen.nama_dudika, pen.nama_pembimbing
              FROM presensi p
              LEFT JOIN penempatan pen ON p.nis = pen.nis_siswa
-             WHERE DATE(p.timestamp) = ?
+             WHERE DATE(p.timestamp) = ? AND p.periode_id = ?
              ORDER BY p.timestamp DESC
              LIMIT 15",
-            [$today]
+            [$today, $periodeId]
         );
 
         $waBotNumber = $_ENV['WA_BOT_NUMBER'] ?? '6287754446580';

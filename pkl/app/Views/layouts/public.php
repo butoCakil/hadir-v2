@@ -1,6 +1,8 @@
 <?php
 $navItems = [
-    ['href'=>'/info',  'label'=>'Data Presensi', 'icon'=>'fa-clipboard-check', 'key'=>'info'],
+    ['href'=>'/home', 'label'=>'Beranda',       'icon'=>'fa-house',           'key'=>'home'],
+    ['href'=>'/info', 'label'=>'Data Presensi', 'icon'=>'fa-clipboard-check', 'key'=>'info'],
+    ['href'=>'/dudi', 'label'=>'Data DUDI',     'icon'=>'fa-building',        'key'=>'dudi'],
 ];
 $activePage = $activePage ?? '';
 ?>
@@ -44,7 +46,7 @@ $activePage = $activePage ?? '';
                 <span>Dashboard</span>
             </a>
             <?php else: ?>
-            <a href="/login" class="btn-logout">
+            <a href="https://hadir.masbendz.com/login" class="btn-logout" target="_top">
                 <i class="fa-solid fa-lock"></i>
                 <span>Admin</span>
             </a>
