@@ -130,9 +130,31 @@ class WabotHandler
             if ($result !== null) return $result;
         }
 
-        // ── 3. Konfirmasi pending registrasi (YA / TIDAK) ──
+        // ── 3. Konfirmasi pending registrasi / confirm_ket (YA / TIDAK) ──
         $pending = $this->session->getPending($number);
         if ($pending && isset($pending['type']) && $pending['type'] !== 'pending_presensi') {
+
+            // ── confirm_ket: tangkap duluan sebelum ya/tidak ──
+            if ($pending['type'] === 'confirm_ket') {
+                $ketMap = [
+                    '1' => 'sakit', 'sakit' => 'sakit',
+                    '2' => 'izin',  'izin'  => 'izin', 'ijin' => 'izin',
+                    '3' => 'libur', 'libur' => 'libur',
+                ];
+                $balasan = strtolower(trim($message));
+                if (isset($ketMap[$balasan])) {
+                    return $this->handleKonfirmasiKet($number, $message, $pending, true);
+                }
+                // Balasan tidak dikenali dan bukan ya/tidak — tanya ulang
+                if (!preg_match('/^(ya|tidak|tdk|tak|no|cancel)/i', $message)) {
+                    return "⚠️ Pilihan tidak dikenali.\n\n"
+                        . "Balas dengan:\n"
+                        . "1️⃣ `sakit`\n"
+                        . "2️⃣ `izin`\n"
+                        . "3️⃣ `libur`";
+                }
+            }
+
             if (preg_match('/^ya($|\s|a+$)/i', $message) || strtolower($message) === 'y' || str_starts_with(strtolower($message), 'iya')) {
                 $this->session->clearPending($number);
                 if ($pending['type'] === 'confirm_reg') {
@@ -140,6 +162,9 @@ class WabotHandler
                 }
                 if ($pending['type'] === 'confirm_libur') {
                     return $this->handleKonfirmasiLibur($number, $pending);
+                }
+                if ($pending['type'] === 'confirm_ket') {
+                    return $this->handleKonfirmasiKet($number, $message, $pending, true);
                 }
                 return "✅ Dikonfirmasi.";
             }
@@ -151,13 +176,15 @@ class WabotHandler
                 if ($pending['type'] === 'confirm_libur') {
                     return "🚨 *Ingat!*\n\nKamu belum melakukan presensi hari ini.\nSegera lakukan presensi seperti biasa ya.";
                 }
+                if ($pending['type'] === 'confirm_ket') {
+                    return "⚠️ Baik, presensi dibatalkan.\n\nJika ingin presensi, kirim langsung:\n`sakit`, `izin`, atau `libur`";
+                }
                 return "⚠️ Dibatalkan.";
             }
         }
 
         // YA/TIDAK tanpa pending aktif → notif admin
         if (preg_match('/^ya($|\s|a+$)/i', $message) || strtolower($message) === 'y' || str_starts_with(strtolower($message), 'iya')) {
-            $nohp62 = WaSender::normalisasi0ke62($number);
             $adminMsg = "$number ~ $pushName:\n$message\n\nSesi Hub.Admin *Tidak Aktif*\nSesi bukan Konfirmasi Reg: ya";
             $this->sender->send($this->adminNumber, $adminMsg, null);
             return null;
@@ -175,14 +202,13 @@ class WabotHandler
             if (in_array($msgLower, ['7', 'admin'])) {
                 return "✅ Sesi admin sudah aktif.\n\nSilakan ketik pesan Anda langsung.\n\nKetik `info` untuk keluar dari sesi admin.";
             }
-            // Deteksi typo lalu forward ke admin
             $typoReply = $this->detectTypo($message);
             if ($typoReply) {
                 $this->notifAdmin($number, $pushName, $message, $mediaUrl, true, $typoReply);
                 return $typoReply;
             }
             $this->notifAdmin($number, $pushName, $message, $mediaUrl, true);
-            return null; // tidak balas — admin yang balas
+            return null;
         }
 
         // ── 6. Perintah balas (khusus admin) ──
@@ -210,7 +236,7 @@ class WabotHandler
             return $this->registrasi->handle($number, $pushName, $message);
         }
 
-        // ── 11. Lupa presensi ──
+        // ── 11. Lupa presensi (perintah eksplisit) ──
         if (str_starts_with($msgLower, 'lupa')) {
             return $this->lupa->handle($number, $pushName, $message, $mediaUrl);
         }
@@ -257,8 +283,8 @@ class WabotHandler
             return $this->handleBroadcast();
         }
 
-        // ── 20. Presensi (masuk/izin/sakit/libur) ──
-        $ketValid = ['masuk', 'izin', 'sakit', 'libur'];
+        // ── 20. Presensi (masuk/izin/sakit/libur) — perintah eksplisit ──
+        $ketValid  = ['masuk', 'izin', 'sakit', 'libur'];
         $firstWord = strtolower(explode(' ', trim($message))[0] ?? '');
         if (in_array($firstWord, $ketValid)) {
             return $this->presensi->handle($number, $pushName, $message, $mediaUrl);
@@ -269,6 +295,10 @@ class WabotHandler
             return $this->handleFotoTanpaKapsi($number, $pushName, $message, $mediaUrl);
         }
 
+        // ── 21b. Klasifikasi kalimat bebas (NLP layer) ──
+        $klasifikasi = $this->handleKlasifikasi($number, $pushName, $message, $mediaUrl);
+        if ($klasifikasi !== null) return $klasifikasi;
+
         // ── 22. Typo detection ──
         $typoReply = $this->detectTypo($message);
         if ($typoReply) return $typoReply;
@@ -276,6 +306,455 @@ class WabotHandler
         // ── 23. Pesan bebas — anti-spam + notif admin ──
         return $this->handlePesanBebas($number, $pushName, $message, $mediaUrl);
     }
+
+    // =========================================================================
+    // NLP LAYER — Klasifikasi kalimat bebas
+    // =========================================================================
+
+    /**
+     * Mengklasifikasikan pesan bebas menjadi array:
+     * [
+     *   'kategori' => 'masuk'|'izin'|'sakit'|'libur'|null,
+     *   'tanggal'  => 'Y-m-d',        // default: hari ini
+     *   'isLampau' => bool,            // true = hari sebelumnya
+     *   'isLupa'   => bool,            // true = ada kata 'lupa' atau tanggal lampau
+     *   'ambigu'   => bool,            // true = sinyal tidak hadir tapi ket tidak jelas
+     *   'catatan'  => string,
+     * ]
+     * Kembalikan null jika tidak ada sinyal apapun.
+     */
+    private function klasifikasiPesan(string $message): ?array
+    {
+        $msg = strtolower(trim($message));
+        $msg = preg_replace('/\s+/', ' ', $msg);
+
+        // ── Koreksi typo ringan (dictionary) ──
+        $dictionary = [
+            'masuk', 'hadir', 'datang', 'ikut', 'oke', 'siap',
+            'izin', 'ijin', 'keperluan', 'urusan', 'acara', 'permisi', 'tugas', 'dinas',
+            'sakit', 'demam', 'pusing', 'flu', 'batuk', 'mual', 'lemas', 'pilek', 'sariawan', 'migren',
+            'libur', 'cuti', 'off', 'kosong',
+            'tidak', 'gak', 'ga', 'tak', 'bukan', 'belum', 'enggak', 'nggak', 'ngga',
+            'lupa', 'kemarin', 'hari ini', 'besok', 'lusa',
+            'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu', 'minggu',
+            'job', 'kerja', 'kerjaan', 'pekerjaan', 'shift', 'jadwal',
+            'projek', 'proyek', 'office', 'present', 'join', 'ready',
+        ];
+        $words = explode(' ', $msg);
+        $corrected = [];
+        foreach ($words as $w) {
+            // Skip kata pendek (≤3 huruf) dan angka — rawan false positive
+            if (is_numeric($w) || strlen($w) <= 3) { $corrected[] = $w; continue; }
+            $closest  = $w;
+            $shortest = 999;
+            foreach ($dictionary as $v) {
+                $lev = levenshtein($w, $v);
+                $sim = 0;
+                similar_text($w, $v, $sim);
+                if (($lev <= 2 || $sim >= 70) && $lev < $shortest) {
+                    $shortest = $lev;
+                    $closest  = $v;
+                }
+            }
+            $corrected[] = $closest;
+        }
+        $msg = implode(' ', $corrected);
+
+        // ── Kata kunci kategori ──
+        $keywords = [
+            'masuk' => ['masuk', 'hadir', 'datang', 'ikut', 'oke', 'siap', 'present', 'join', 'ready'],
+            'izin'  => ['izin', 'ijin', 'keperluan', 'urusan', 'acara', 'permisi', 'tugas', 'dinas'],
+            'sakit' => ['sakit', 'demam', 'pusing', 'flu', 'batuk', 'mual', 'lemas', 'pilek', 'sariawan', 'migren'],
+            'libur' => ['libur', 'cuti', 'off', 'kosong'],
+        ];
+        $kerjaWords = ['job', 'kerja', 'kerjaan', 'pekerjaan', 'shift', 'jadwal', 'projek', 'proyek', 'office'];
+        $negasi     = ['tidak', 'gak', 'ga', 'tak', 'bukan', 'belum', 'enggak', 'nggak', 'ngga'];
+
+        // ── Sinyal ketidakhadiran ambigu (tidak menyebut alasan) ──
+        $sinyalAmbigu = [
+            'tidak masuk', 'ga masuk', 'gak masuk', 'nggak masuk', 'ngga masuk',
+            'tidak hadir', 'ga hadir', 'gak hadir', 'nggak hadir',
+            'tidak bisa masuk', 'ga bisa masuk', 'gak bisa masuk',
+            'tidak bisa hadir', 'ga bisa hadir',
+            'absen',
+        ];
+
+        // ── Parsing tanggal ──
+        $tanggal  = date('Y-m-d'); // default: hari ini
+        $isLampau = false;
+
+        // Kata waktu sederhana
+        $waktuMap = [
+            'hari ini' => date('Y-m-d'),
+            'kemarin'  => date('Y-m-d', strtotime('-1 day')),
+        ];
+        foreach ($waktuMap as $k => $tgl) {
+            if (str_contains($msg, $k)) {
+                $tanggal  = $tgl;
+                $isLampau = ($k === 'kemarin');
+                break;
+            }
+        }
+
+        // Nama hari → tanggal terdekat sebelumnya
+        $hariMap = [
+            'senin'  => 'monday', 'selasa' => 'tuesday', 'rabu'   => 'wednesday',
+            'kamis'  => 'thursday', 'jumat' => 'friday',  'sabtu'  => 'saturday',
+            'minggu' => 'sunday',
+        ];
+        $sufixLalu = ['lalu', 'kemarin', 'yang lalu'];
+        foreach ($hariMap as $indo => $eng) {
+            if (str_contains($msg, $indo)) {
+                // cek apakah disebut "senin lalu", "jumat kemarin", dsb → pasti lampau
+                // atau nama hari saja → juga anggap lampau (hari ini sudah ditangkap di atas)
+                $tglHari  = date('Y-m-d', strtotime("last $eng"));
+                // Kalau hari ini memang hari itu, ambil minggu lalu
+                if ($tglHari === date('Y-m-d')) {
+                    $tglHari = date('Y-m-d', strtotime("-7 days"));
+                }
+                $tanggal  = $tglHari;
+                $isLampau = true;
+                break;
+            }
+        }
+
+        // Tanggal eksplisit: "17 april", "17 april 2025", "17-04-2025", "17/04/2025"
+        $namaBulan = [
+            'januari'=>'01','februari'=>'02','maret'=>'03','april'=>'04',
+            'mei'=>'05','juni'=>'06','juli'=>'07','agustus'=>'08',
+            'september'=>'09','oktober'=>'10','november'=>'11','desember'=>'12',
+        ];
+        // Format: DD NamaBulan [YYYY]
+        if (preg_match('/\b(\d{1,2})\s+([a-z]+)(?:\s+(\d{4}))?\b/', $msg, $m)) {
+            $bulanStr = strtolower($m[2]);
+            if (isset($namaBulan[$bulanStr])) {
+                $d   = str_pad($m[1], 2, '0', STR_PAD_LEFT);
+                $mo  = $namaBulan[$bulanStr];
+                $y   = $m[3] ?? date('Y');
+                $tgl = "$y-$mo-$d";
+                if (checkdate((int)$mo, (int)$d, (int)$y)) {
+                    $tanggal  = $tgl;
+                    $isLampau = ($tgl < date('Y-m-d'));
+                }
+            }
+        }
+        // Format: DD-MM-YYYY atau DD/MM/YYYY
+        if (preg_match('/\b(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})\b/', $msg, $m)) {
+            $d  = str_pad($m[1], 2, '0', STR_PAD_LEFT);
+            $mo = str_pad($m[2], 2, '0', STR_PAD_LEFT);
+            $y  = strlen($m[3]) === 2 ? '20' . $m[3] : $m[3];
+            $tgl = "$y-$mo-$d";
+            if (checkdate((int)$mo, (int)$d, (int)$y)) {
+                $tanggal  = $tgl;
+                $isLampau = ($tgl < date('Y-m-d'));
+            }
+        }
+
+        // ── Deteksi kategori ──
+        $foundPositive = [];
+        $foundNegasi   = [];
+
+        foreach ($keywords as $kat => $list) {
+            foreach ($list as $word) {
+                if (str_contains($msg, $word)) {
+                    $hasNegasi = false;
+                    foreach ($negasi as $n) {
+                        if (preg_match('/\b' . preg_quote($n, '/') . '\s+' . preg_quote($word, '/') . '\b/', $msg)) {
+                            $hasNegasi = true;
+                            break;
+                        }
+                    }
+                    if ($hasNegasi) {
+                        // Negasi pada kata kunci → sinyal tidak hadir tapi alasan tidak jelas
+                        // Jangan asumsikan kategori, tandai sebagai ambigu
+                        $foundNegasi[] = 'ambigu';
+                    } else {
+                        $foundPositive[] = $kat;
+                    }
+                }
+            }
+        }
+
+        // Kata kerja + negasi → libur
+        foreach ($kerjaWords as $w) {
+            if (str_contains($msg, $w)) {
+                foreach ($negasi as $n) {
+                    if (str_contains($msg, $n)) {
+                        $foundPositive[] = 'libur';
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        // Prioritas kategori: sakit > izin > libur > masuk
+        $prioritas = ['sakit', 'izin', 'libur', 'masuk'];
+        $kategori  = null;
+        if (!empty($foundPositive)) {
+            foreach ($prioritas as $p) {
+                if (in_array($p, $foundPositive)) { $kategori = $p; break; }
+            }
+        } elseif (!empty($foundNegasi)) {
+            // Ada negasi tapi tidak ada kategori positif → ambigu
+            $adaAmbigu = true;
+        }
+
+        // ── Deteksi sinyal ambigu ──
+        $adaAmbigu = false;
+        if (!$kategori) {
+            foreach ($sinyalAmbigu as $sinyal) {
+                if (str_contains($msg, $sinyal)) { $adaAmbigu = true; break; }
+            }
+        }
+
+        // Tidak ada sinyal apapun → return null
+        if (!$kategori && !$adaAmbigu) return null;
+
+        // ── Ambil catatan (teks setelah kata kunci kategori, bersih) ──
+        $catatan = '';
+        if ($kategori) {
+            foreach ($keywords[$kategori] as $kw) {
+                $pos = strpos($msg, $kw);
+                if ($pos !== false) {
+                    $catatan = trim(substr($msg, $pos + strlen($kw)));
+                    break;
+                }
+            }
+            // Bersihkan kata-kata tidak relevan dari catatan
+            $filterWords = array_merge(
+                $negasi, array_keys($keywords), $kerjaWords,
+                ['hari ini', 'kemarin', 'besok', 'lupa'],
+                array_keys($hariMap), array_keys($namaBulan)
+            );
+            foreach ($filterWords as $fw) {
+                $catatan = preg_replace('/\b' . preg_quote($fw, '/') . '\b/', '', $catatan);
+            }
+            $catatan = trim(preg_replace('/\s+/', ' ', $catatan));
+        }
+
+        $isLupa = str_contains($msg, 'lupa') || $isLampau;
+
+        return [
+            'kategori' => $kategori,
+            'tanggal'  => $tanggal,
+            'isLampau' => $isLampau,
+            'isLupa'   => $isLupa,
+            'ambigu'   => $adaAmbigu,
+            'catatan'  => $catatan,
+        ];
+    }
+
+    /**
+     * Decision layer setelah klasifikasi.
+     * Menentukan aksi berdasarkan hasil parsing:
+     * - Ket jelas + hari ini  → PresensiHandler (tanpa foto untuk izin/sakit/libur)
+     * - Ket jelas + lampau    → LupaHandler (tanpa foto untuk izin/sakit/libur; masuk minta foto)
+     * - Ambigu                → konfirmasi confirm_ket
+     * Return null jika tidak ada sinyal.
+     */
+    private function handleKlasifikasi(
+        string $number, string $pushName, string $message, ?string $mediaUrl
+    ): ?string {
+        // Hanya untuk siswa terdaftar
+        $nohp0  = WaSender::normalisasi62ke0($number);
+        $nohp62 = WaSender::normalisasi0ke62($number);
+        $siswa  = $this->db->queryOne(
+            "SELECT nis, nama, kelas FROM datasiswa WHERE nohp = ? OR nohp = ? LIMIT 1",
+            [$nohp0, $nohp62]
+        );
+        if (!$siswa) return null;
+
+        $hasil = $this->klasifikasiPesan($message);
+        if (!$hasil) return null;
+
+        $nis     = $siswa['nis'];
+        $nama    = $siswa['nama'];
+        $kelas   = $siswa['kelas'];
+        $tanggal = $hasil['tanggal'];
+        $ket     = $hasil['kategori'];
+
+        // ── Kasus: sinyal ambigu (tidak hadir, ket tidak jelas) ──
+        if ($hasil['ambigu'] && !$ket) {
+            return $this->handleAmbigu($number, $siswa, $tanggal);
+        }
+
+        // ── Kasus: ket jelas ──
+        if ($ket) {
+            // Cek sudah presensi di tanggal tersebut
+            $existing = $this->db->queryOne(
+                "SELECT ket FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
+                [$nis, $tanggal]
+            );
+            if ($existing) {
+                $label = ($tanggal === date('Y-m-d')) ? 'hari ini' : "tanggal " . $this->formatTanggalIndo($tanggal);
+                return "✅ Presensi $label sudah tercatat.\nKet: {$existing['ket']}";
+            }
+
+            // ── Hari ini ──
+            if (!$hasil['isLupa']) {
+                if ($ket === 'masuk') {
+                    // Masuk tetap butuh foto → arahkan ke PresensiHandler normal
+                    return $this->presensi->handle($number, $pushName, $ket . ($hasil['catatan'] ? ' ' . $hasil['catatan'] : ''), $mediaUrl);
+                }
+                // izin/sakit/libur hari ini → simpan langsung tanpa foto
+                return $this->simpanPresensiKlasifikasi($number, $nis, $nama, $kelas, $ket, $hasil['catatan'], $tanggal);
+            }
+
+            // ── Tanggal lampau (lupa) ──
+            if ($ket === 'masuk') {
+                // Masuk + lampau tetap butuh foto → arahkan panduan lupa
+                return "📸 Untuk presensi *masuk* di tanggal lampau, kamu perlu menyertakan *foto selfie*.\n\n"
+                    . "Format caption:\n`LUPA Masuk " . date('d-m-Y', strtotime($tanggal)) . " [catatan kegiatan]`\n\n"
+                    . "Kirim foto dengan caption tersebut.";
+            }
+
+            // izin/sakit/libur + lampau → simpan sebagai lupa tanpa foto
+            return $this->simpanLupaKlasifikasi($number, $nis, $nama, $kelas, $ket, $hasil['catatan'], $tanggal);
+        }
+
+        return null;
+    }
+
+    /**
+     * Handle kalimat ambigu: ada sinyal tidak hadir tapi ket tidak jelas.
+     * Cek pending aktif dulu, lalu tanya konfirmasi.
+     */
+    private function handleAmbigu(string $number, array $siswa, string $tanggal): ?string
+    {
+        $pendingAktif = $this->session->getPending($number);
+        if ($pendingAktif && ($pendingAktif['type'] ?? '') === 'confirm_ket') {
+            // Cek timeout 2 jam
+            if ((time() - ($pendingAktif['timestamp'] ?? 0)) > 7200) {
+                $this->session->clearPending($number);
+                // Lanjut buat pending baru
+            } else {
+                return "⏳ Masih ada pertanyaan yang menunggu jawabanmu:\n\n"
+                    . "❓ *Apa alasan ketidakhadiranmu?*\n\n"
+                    . "1️⃣ `sakit`\n"
+                    . "2️⃣ `izin`\n"
+                    . "3️⃣ `libur`\n\n"
+                    . "Balas dengan angka (1/2/3) atau langsung ketik keterangannya.";
+            }
+        }
+
+        // Cek sudah presensi hari ini
+        $existing = $this->db->queryOne(
+            "SELECT id FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
+            [$siswa['nis'], date('Y-m-d')]
+        );
+        if ($existing) return null;
+
+        $pending = [
+            'type'      => 'confirm_ket',
+            'nis'       => $siswa['nis'],
+            'namasiswa' => $siswa['nama'],
+            'kelas'     => $siswa['kelas'],
+            'tanggal'   => $tanggal,
+            'timestamp' => time(),
+        ];
+        $this->session->setPending($number, $pending);
+
+        return "Baik {$siswa['nama']}, sistem menangkap kamu tidak hadir hari ini.\n\n"
+            . "❓ *Apa alasan ketidakhadiranmu?*\n\n"
+            . "1️⃣ `sakit`\n"
+            . "2️⃣ `izin`\n"
+            . "3️⃣ `libur`\n\n"
+            . "Balas dengan angka (1/2/3) atau langsung ketik keterangannya.";
+    }
+
+    /**
+     * Simpan presensi hari ini tanpa foto (izin/sakit/libur dari klasifikasi).
+     */
+    private function simpanPresensiKlasifikasi(
+        string $number, string $nis, string $nama, string $kelas,
+        string $ket, string $catatan, string $tanggal
+    ): string {
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
+
+        // Cek periode valid
+        $cekPeriode = \App\Api\Helpers\PeriodeHelper::cekTanggalValid($tanggal);
+        if (!$cekPeriode['valid']) {
+            return "🚫 Presensi gagal.\n\n" . $cekPeriode['pesan'];
+        }
+
+        $kode              = $this->generateKode();
+        $timestampPresensi = $tanggal . ' ' . date('H:i:s');
+
+        $this->db->execute(
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, '', '', ?, ?)",
+            [$periodeId, $nis, $nama, $kelas, ucfirst($ket), $catatan, $kode, $timestampPresensi]
+        );
+
+        return $this->pesanPresensiOK($ket, $catatan, $nama, $kelas, $nis);
+    }
+
+    /**
+     * Simpan lupa presensi tanpa foto (izin/sakit/libur dari klasifikasi, tanggal lampau).
+     */
+    private function simpanLupaKlasifikasi(
+        string $number, string $nis, string $nama, string $kelas,
+        string $ket, string $catatan, string $tanggal
+    ): string {
+        // Cek tidak bisa untuk hari ini atau masa depan
+        if ($tanggal >= date('Y-m-d')) {
+            return "⚠️ Fitur lupa presensi hanya untuk *hari sebelumnya*.";
+        }
+
+        // Cek periode + toleransi
+        $cekPeriode = \App\Api\Helpers\PeriodeHelper::cekTanggalValid($tanggal);
+        if (!$cekPeriode['valid']) {
+            return "🚫 *Lupa Absen gagal.*\n\n" . $cekPeriode['pesan'];
+        }
+
+        // Cek sudah presensi di tanggal itu
+        $sudah = $this->db->queryOne(
+            "SELECT id FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
+            [$nis, $tanggal]
+        );
+        if ($sudah) {
+            return "⚠️ Presensi tanggal *" . $this->formatTanggalIndo($tanggal) . "* sudah tercatat.";
+        }
+
+        // Cek rate limit
+        $nohp0       = WaSender::normalisasi62ke0($number);
+        $jumlahHariIni = $this->session->getLupaHariIni($nohp0);
+        $maxLupa     = 2;
+        if ($jumlahHariIni >= $maxLupa) {
+            return "🚫 Batas penggunaan fitur *Lupa Absen* sudah tercapai.\n\nMaksimal *{$maxLupa} kali per hari*.";
+        }
+
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
+
+        $kode      = 'L' . strtoupper(substr(md5($nis . $tanggal . time()), 0, 5));
+        $timestamp = $tanggal . ' ' . date('H:i:s');
+
+        $this->db->execute(
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, '', 'OK', ?, ?)",
+            [$periodeId, $nis, $nama, $kelas, ucfirst($ket), $catatan ?: '', $kode, $timestamp]
+        );
+
+        $jumlahBaru    = $this->session->incrementLupa($nohp0);
+        $tglFormatted  = $this->formatTanggalIndo($tanggal);
+
+        return "```\n"
+            . "✅ Lupa Absen Berhasil Dicatat\n\n"
+            . "📅 Tanggal    : $tglFormatted\n"
+            . "📝 Keterangan : " . ucfirst($ket) . "\n"
+            . "🙍 Nama       : $nama\n"
+            . "🏫 Kelas      : $kelas\n"
+            . "🗒️ Catatan    : " . ($catatan ?: '-') . "\n"
+            . "🔑 Kode       : $kode\n"
+            . "📊 Pemakaian  : $jumlahBaru dari {$maxLupa} kali\n"
+            . "```";
+    }
+
+    // =========================================================================
+    // HANDLER METHODS
+    // =========================================================================
 
     // ─── Pending presensi: foto dulu → ket setelahnya ─────────────────────
     private function handlePendingPresensi(
@@ -307,19 +786,39 @@ class WabotHandler
             $ketValid = ['masuk', 'izin', 'sakit', 'libur'];
 
             if (!in_array($status, $ketValid)) {
-                $typo = $this->detectTypo($message);
-                if ($typo) return $typo;
-                return "🚫 *Keterangan presensi* `$status` *tidak valid!*\n\n📌 Gunakan salah satu:\n- `masuk`\n- `izin`\n- `sakit`\n- `libur`";
+                // Coba klasifikasi sebelum tolak
+                $hasil = $this->klasifikasiPesan($message);
+                if ($hasil && $hasil['kategori'] && !$hasil['isLupa']) {
+                    // Ket jelas + hari ini → pakai foto dari pending
+                    $status  = $hasil['kategori'];
+                    $catatan = $hasil['catatan'];
+                } elseif ($hasil && ($hasil['ambigu'] || $hasil['isLupa'])) {
+                    // Ambigu atau lampau → clear pending foto, arahkan ulang
+                    $this->session->clearPendingPresensi($number);
+                    if ($hasil['ambigu']) {
+                        $siswaArr = ['nis' => $nis, 'nama' => $nama, 'kelas' => $kelas];
+                        return $this->handleAmbigu($number, $siswaArr, $hasil['tanggal'])
+                            ?? "Baik, presensi foto dibatalkan.\n\nKirim ulang jika ingin presensi hari ini.";
+                    }
+                    return "⚠️ Foto untuk presensi hari ini sudah dibatalkan.\n\n"
+                        . "Jika ingin presensi tanggal lampau, gunakan format:\n"
+                        . "`LUPA [ket] [tanggal] [catatan]` + foto";
+                } else {
+                    $typo = $this->detectTypo($message);
+                    if ($typo) return $typo;
+                    return "🚫 *Keterangan presensi* `$status` *tidak valid!*\n\n📌 Gunakan salah satu:\n- `masuk`\n- `izin`\n- `sakit`\n- `libur`";
+                }
             }
 
             $kode         = $this->generateKode();
             $foto         = $pending['foto'];
             $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
             $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
+            $timestampPresensi = $tanggal . ' ' . date('H:i:s');
             $this->db->execute(
                 "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'OK', ?, NOW())",
-                [$periodeId, $nis, $nama, $kelas, $status, $catatan, $foto, $kode]
+                 VALUES (?, ?, ?, ?, ?, ?, '', '', ?, ?)",
+                [$periodeId, $nis, $nama, $kelas, ucfirst($status), $catatan, $kode, $timestampPresensi]
             );
             $this->session->clearPendingPresensi($number);
             $this->jalankanProseschat($nis, $kode, $foto);
@@ -329,7 +828,6 @@ class WabotHandler
         // Kasus 2: Pending tanpa foto, user kirim foto
         if (empty($pending['foto']) && !empty($mediaUrl)) {
             if (!empty($status)) {
-                // Status sudah ada → langsung insert
                 $kode         = $this->generateKode();
                 $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
                 $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
@@ -342,7 +840,6 @@ class WabotHandler
                 $this->jalankanProseschat($nis, $kode, $mediaUrl);
                 return $this->pesanPresensiOK($status, $catatan, $nama, $kelas, $nis);
             } else {
-                // Simpan foto, minta keterangan
                 $pending['foto']      = $mediaUrl;
                 $pending['timestamp'] = time();
                 $this->session->setPendingPresensi($number, $pending);
@@ -366,12 +863,10 @@ class WabotHandler
             [$nohp0, $nohp62]
         );
 
-        // Cek apakah ada keterangan di caption
         $firstWord = strtolower(explode(' ', trim($message))[0] ?? '');
         $ketValid  = ['masuk', 'izin', 'sakit', 'libur'];
 
         if ($siswa) {
-            // Cek sudah presensi
             $existing = $this->db->queryOne(
                 "SELECT ket, timestamp FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
                 [$siswa['nis'], $tanggal]
@@ -382,11 +877,49 @@ class WabotHandler
             }
 
             if (in_array($firstWord, $ketValid)) {
-                // Caption valid → proses langsung via PresensiHandler
                 return $this->presensi->handle($number, $pushName, $message, $mediaUrl);
             }
 
-            // Foto tanpa ket → simpan pending
+            // Coba klasifikasi caption sebelum simpan pending
+            if (!empty($message)) {
+                $hasil = $this->klasifikasiPesan($message);
+                if ($hasil) {
+                    $ket     = $hasil['kategori'];
+                    $tanggal = $hasil['tanggal'];
+
+                    if ($hasil['ambigu'] && !$ket) {
+                        // Ambigu → tanya konfirmasi, abaikan foto
+                        return $this->handleAmbigu($number, $siswa, $tanggal)
+                            ?? "Baik, kirim ulang foto jika ingin presensi hari ini.";
+                    }
+
+                    if ($ket && $hasil['isLupa'] && $ket !== 'masuk') {
+                        // Lampau + izin/sakit/libur → simpan lupa tanpa foto
+                        return $this->simpanLupaKlasifikasi(
+                            $number, $siswa['nis'], $siswa['nama'], $siswa['kelas'],
+                            $ket, $hasil['catatan'], $tanggal
+                        );
+                    }
+
+                    if ($ket && $hasil['isLupa'] && $ket === 'masuk') {
+                        // Lampau + masuk + ada foto → forward ke LupaHandler
+                        $captionLupa = 'lupa masuk ' . date('d-m-Y', strtotime($tanggal))
+                            . ($hasil['catatan'] ? ' ' . $hasil['catatan'] : '');
+                        return $this->lupa->handle($number, $pushName, $captionLupa, $mediaUrl);
+                    }
+
+                    if ($ket && !$hasil['isLupa']) {
+                        // Hari ini + ket jelas → presensi normal dengan foto
+                        return $this->presensi->handle(
+                            $number, $pushName,
+                            $ket . ($hasil['catatan'] ? ' ' . $hasil['catatan'] : ''),
+                            $mediaUrl
+                        );
+                    }
+                }
+            }
+
+            // Foto tanpa ket yang dikenali → simpan pending
             $pending = [
                 'type'      => 'pending_presensi',
                 'nis'       => $siswa['nis'],
@@ -414,7 +947,6 @@ class WabotHandler
                 . "`admin` atau `7` → Hubungi admin";
         }
 
-        // Pembimbing
         $pembimbing = $this->db->queryOne(
             "SELECT nama FROM datapembimbing WHERE nohp = ? LIMIT 1",
             [$nohp62]
@@ -436,6 +968,95 @@ class WabotHandler
             . "💬 Balas `admin` untuk hubungi admin.";
     }
 
+    // ─── Konfirmasi ket dari pesan ambigu ─────────────────────────────────
+    private function handleKonfirmasiKet(
+        string $number, string $message, array $pending, bool $isYa
+    ): string {
+        $nis     = $pending['nis']       ?? '';
+        $nama    = $pending['namasiswa'] ?? '';
+        $kelas   = $pending['kelas']     ?? '';
+        $tanggal = $pending['tanggal']   ?? date('Y-m-d');
+
+        $msg    = strtolower(trim($message));
+        $ketMap = [
+            '1' => 'sakit', 'sakit' => 'sakit',
+            '2' => 'izin',  'izin'  => 'izin',  'ijin' => 'izin',
+            '3' => 'libur', 'libur' => 'libur',
+        ];
+
+        $ket = $ketMap[$msg] ?? null;
+        if (!$ket) {
+            return "⚠️ Pilihan tidak dikenali.\n\n"
+                . "Balas dengan:\n"
+                . "1️⃣ `sakit`\n"
+                . "2️⃣ `izin`\n"
+                . "3️⃣ `libur`";
+        }
+
+        $this->session->clearPending($number);
+
+        $labelTanggal = ($tanggal === date('Y-m-d'))
+            ? 'hari ini'
+            : 'tanggal *' . $this->formatTanggalIndo($tanggal) . '*';
+
+        $existing = $this->db->queryOne(
+            "SELECT ket FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
+            [$nis, $tanggal]
+        );
+        if ($existing) {
+            return "✅ Presensi $labelTanggal sudah tercatat sebelumnya.\nKet: {$existing['ket']}";
+        }
+
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
+
+        $kode              = strtoupper(substr(md5($nis . $tanggal . time()), 0, 6));
+        $timestampPresensi = $tanggal . ' ' . date('H:i:s');
+
+        $this->db->execute(
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, ?, '', '', '', ?, ?)",
+            [$periodeId, $nis, $nama, $kelas, ucfirst($ket), $kode, $timestampPresensi]
+        );
+
+        return match($ket) {
+            'sakit' => "🤒 Presensi *Sakit* untuk $nama ($kelas) $labelTanggal sudah tercatat.\n\nSemoga lekas sembuh ya! 💪",
+            'izin'  => "🙏 Presensi *Izin* untuk $nama ($kelas) $labelTanggal sudah tercatat.\n\nSemoga urusannya lancar!",
+            'libur' => "🏖️ Presensi *Libur* untuk $nama ($kelas) $labelTanggal sudah tercatat.\n\nSelamat beristirahat!",
+            default => "✅ Presensi *" . ucfirst($ket) . "* untuk $nama ($kelas) $labelTanggal sudah tercatat.",
+        };
+    }
+
+    private function handleKonfirmasiLibur(string $number, array $pending): string
+    {
+        $nis    = $pending['nis']    ?? '';
+        $nama   = $pending['nama']   ?? '';
+        $kelas  = $pending['kelas']  ?? '';
+        $waktu  = date('Y-m-d', strtotime($pending['waktu'] ?? 'now'));
+        $ts     = date('Y-m-d H:i:s', strtotime($pending['waktu'] ?? 'now'));
+
+        $existing = $this->db->queryOne(
+            "SELECT 1 FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
+            [$nis, $waktu]
+        );
+        if ($existing) {
+            return "✅ Presensi tanggal $waktu sudah tercatat sebelumnya.";
+        }
+
+        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
+        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
+        $this->db->execute(
+            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp)
+             VALUES (?, ?, ?, ?, 'libur', '', '', '', 'AUTO', ?)",
+            [$periodeId, $nis, $nama, $kelas, $ts]
+        );
+
+        $tanggal       = date('Y-m-d');
+        $formattedDate = ($waktu === $tanggal) ? "Hari ini" : "Hari/Tanggal:\n" . $this->formatTanggalIndo($waktu);
+
+        return "✅ Oke, $formattedDate dicatat sebagai *libur* untuk $nama ($kelas).";
+    }
+
     // ─── Pesan bebas — anti-spam + notif admin ────────────────────────────
     private function handlePesanBebas(
         string $number, string $pushName, string $message, ?string $mediaUrl
@@ -451,18 +1072,15 @@ class WabotHandler
             "SELECT nama FROM datapembimbing WHERE nohp = ? LIMIT 1", [$nohp62]
         ) : null;
 
-        $typeMap = [
-            'siswa'      => $siswa      ? "Dari: {$siswa['nama']}\nKelas: {$siswa['kelas']}\n"     : null,
-            'pembimbing' => $pembimbing ? "Dari Pembimbing: {$pembimbing['nama']}\n"               : null,
-        ];
-        $typeLabel = $typeMap['siswa'] ?? $typeMap['pembimbing'] ?? "Dari: Nomor Tidak terdaftar\n";
+        $typeLabel = $siswa
+            ? "Dari: {$siswa['nama']}\nKelas: {$siswa['kelas']}\n"
+            : ($pembimbing ? "Dari Pembimbing: {$pembimbing['nama']}\n" : "Dari: Nomor Tidak terdaftar\n");
 
-        // Anti-spam
         $limitDetik = 180;
         $limitPesan = 5;
-        $spam = $this->session->getAntispam($nohp62);
-        $now  = time();
-        $selisih = $spam['last_reply'] ? ($now - strtotime($spam['last_reply'])) : PHP_INT_MAX;
+        $spam       = $this->session->getAntispam($nohp62);
+        $now        = time();
+        $selisih    = $spam['last_reply'] ? ($now - strtotime($spam['last_reply'])) : PHP_INT_MAX;
 
         $this->session->incrementAntispam($nohp62);
         $count = ($spam['count'] ?? 0) + 1;
@@ -474,14 +1092,14 @@ class WabotHandler
             "🚫 Pesan tanpa format tidak diproses. Balas dengan ketik `info` atau `admin`.",
         ];
 
-        if ($pembimbing) $defaultMsgs = null; // pembimbing tidak dibalas otomatis
+        if ($pembimbing) $defaultMsgs = null;
 
         $sendmsg = null;
 
         if (!$isAdminSes) {
             if ($defaultMsgs && ($count >= $limitPesan || $selisih >= $limitDetik)) {
                 if ($siswa) {
-                    $hello = ["👋 Hai {$siswa['nama']}", "👋 Hallo {$siswa['nama']}"];
+                    $hello   = ["👋 Hai {$siswa['nama']}", "👋 Hallo {$siswa['nama']}"];
                     $sendmsg = $hello[array_rand($hello)] . "\n\n" . $defaultMsgs[array_rand($defaultMsgs)];
                 } else {
                     $sendmsg = $defaultMsgs[array_rand($defaultMsgs)];
@@ -495,7 +1113,6 @@ class WabotHandler
                 $this->sender->send($this->adminNumber, $adminMsg, $mediaUrl);
             }
         } else {
-            // Dalam sesi admin — sudah dihandle di atas, tapi untuk foto/pesan bebas
             $this->notifAdmin($number, $pushName, $message, $mediaUrl, true);
         }
 
@@ -508,9 +1125,8 @@ class WabotHandler
         list($lat, $lon) = explode(",", $message);
         $radius = 300;
 
-        $query = "[out:json];\n(\nnode(around:$radius,$lat,$lon)[name];\nway(around:$radius,$lat,$lon)[name];\nrelation(around:$radius,$lat,$lon)[name];\n);\nout center;\n";
-        $url = "https://overpass-api.de/api/interpreter?data=" . urlencode($query);
-
+        $query   = "[out:json];\n(\nnode(around:$radius,$lat,$lon)[name];\nway(around:$radius,$lat,$lon)[name];\nrelation(around:$radius,$lat,$lon)[name];\n);\nout center;\n";
+        $url     = "https://overpass-api.de/api/interpreter?data=" . urlencode($query);
         $opts    = ["http" => ["header" => "User-Agent: PKLBot/1.0\r\n"]];
         $context = stream_context_create($opts);
         $resp    = @file_get_contents($url, false, $context);
@@ -520,7 +1136,7 @@ class WabotHandler
         }
 
         $dataLokasi = json_decode($resp, true);
-        $results = [];
+        $results    = [];
 
         if (!empty($dataLokasi['elements'])) {
             foreach ($dataLokasi['elements'] as $el) {
@@ -536,10 +1152,8 @@ class WabotHandler
                 }
             }
             usort($results, fn($a, $b) => $a['distance_m'] <=> $b['distance_m']);
-            $nearest = array_slice($results, 0, 3);
-
-            $sendmsg  = "📍 Lokasi Anda: $lat, $lon\n";
-            $sendmsg .= "🔗 [Lihat di Google Maps]\nhttps://www.google.com/maps?q=$lat,$lon\n\nLokasi terdekat:\n";
+            $nearest  = array_slice($results, 0, 3);
+            $sendmsg  = "📍 Lokasi Anda: $lat, $lon\n🔗 [Lihat di Google Maps]\nhttps://www.google.com/maps?q=$lat,$lon\n\nLokasi terdekat:\n";
             foreach ($nearest as $i => $place) {
                 $sendmsg .= ($i+1) . ". {$place['name']} ({$place['distance_m']} m)\n";
             }
@@ -557,36 +1171,6 @@ class WabotHandler
             . "💬 Jika membutuhkan bantuan atau ingin berbicara dengan admin, balas dengan:\n- `7`\n- `admin`\n\n"
             . "🙏 Terima kasih atas perhatiannya.\n\n"
             . "©️ _Sistem Presensi PKL SMK Negeri Bansari_";
-    }
-
-    private function handleKonfirmasiLibur(string $number, array $pending): string
-    {
-        $nis    = $pending['nis']    ?? '';
-        $nama   = $pending['nama']   ?? '';
-        $kelas  = $pending['kelas']  ?? '';
-        $waktu  = date('Y-m-d', strtotime($pending['waktu'] ?? 'now'));
-        $ts     = date('Y-m-d H:i:s', strtotime($pending['waktu'] ?? 'now'));
-
-        $existing = $this->db->queryOne(
-            "SELECT 1 FROM presensi WHERE nis = ? AND DATE(timestamp) = ? LIMIT 1",
-            [$nis, $waktu]
-        );
-
-        if ($existing) {
-            return "✅ Presensi tanggal $waktu sudah tercatat sebelumnya.";
-        }
-
-        $periodeAktif = $this->db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
-        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : null;
-        $this->db->execute(
-            "INSERT INTO presensi (periode_id, nis, namasiswa, kelas, ket, catatan, link, statuslink, kode, timestamp) VALUES (?, ?, ?, ?, 'libur', '', '', '', 'AUTO', ?)",
-            [$periodeId, $nis, $nama, $kelas, $ts]
-        );
-
-        $tanggal = date('Y-m-d');
-        $formattedDate = ($waktu === $tanggal) ? "Hari ini" : "Hari/Tanggal:\n" . $this->formatTanggalIndo($waktu);
-
-        return "✅ Oke, $formattedDate dicatat sebagai *libur* untuk $nama ($kelas).";
     }
 
     // ─── Pesan sukses presensi ────────────────────────────────────────────
@@ -646,8 +1230,8 @@ class WabotHandler
                         $typos[] = substr($word, 0, $i) . $nb . substr($word, $i+1);
                     }
                 }
-                $typos[] = substr($word, 0, $i+1) . $word[$i] . substr($word, $i+1); // double
-                $typos[] = substr($word, 0, $i) . substr($word, $i+1);               // hilang
+                $typos[] = substr($word, 0, $i+1) . $word[$i] . substr($word, $i+1);
+                $typos[] = substr($word, 0, $i) . substr($word, $i+1);
             }
             if (in_array($firstWord, $typos)) {
                 return "`$message` sepertinya salah tulis.\nMungkin seharusnya: *$word*\n\nCoba ulangi kirim pesan dengan ejaan yang benar.";
@@ -670,10 +1254,9 @@ class WabotHandler
             "SELECT nama FROM datapembimbing WHERE nohp = ? LIMIT 1", [$nohp62]
         ) : null;
 
-        $typeLabel = $siswa
+        $typeLabel  = $siswa
             ? "Dari: {$siswa['nama']}\nKelas: {$siswa['kelas']}\n"
             : ($pembimbing ? "Dari Pembimbing: {$pembimbing['nama']}\n" : "Dari: Nomor Tidak terdaftar\n");
-
         $statusSesi = $sesiAktif ? "Sesi Hub.Admin *Aktif* ✅" : "Sesi Hub.Admin *Tidak Aktif* 🚫";
 
         $adminMsg = $typeLabel;
