@@ -27,12 +27,27 @@ $extraCss = <<<CSS
 .hero-logo img { width: 100%; height: 100%; object-fit: cover; }
 .hero-title  { font-size: 1.75rem; font-weight: 800; color: var(--text); margin-bottom: 0.25rem; line-height: 1.2; }
 .hero-sub    { font-size: 0.88rem; color: var(--text2); }
-.hero-badge  {
+.hero-badge {
     display: inline-flex; align-items: center; gap: 0.4rem;
     background: var(--green-bg); color: var(--green);
     border: 1px solid rgba(34,197,94,0.25);
     border-radius: 20px; font-size: 0.72rem; font-weight: 600;
-    padding: 0.22rem 0.75rem; margin-top: 0.5rem;
+    padding: 0.35rem 0.85rem; margin-top: 0.5rem;
+    flex-wrap: wrap; justify-content: center;
+    max-width: 90vw; text-align: center;
+}
+.hero-badge-row2 {
+    width: 100%; text-align: center;
+    font-size: 0.68rem; color: var(--text3);
+    padding-top: 0.1rem;
+}
+@media (min-width: 541px) {
+    .hero-badge-row2 { display: none; }
+    .hero-badge-desktop-extra { display: inline; }
+}
+@media (max-width: 540px) {
+    .hero-badge-desktop-extra { display: none; }
+    .hero-badge-row2 { display: block; }
 }
 .btn-wa {
     display: inline-flex; align-items: center; gap: 0.5rem;
@@ -103,10 +118,58 @@ CSS;
     <div class="hero-title">Sistem Presensi PKL</div>
     <div class="hero-sub">SMK Negeri Bansari · <?= date('Y') ?></div>
     <div>
+        <?php
+        $hariIndo = ['Sunday'=>'Minggu','Monday'=>'Senin','Tuesday'=>'Selasa','Wednesday'=>'Rabu',
+                    'Thursday'=>'Kamis','Friday'=>'Jumat','Saturday'=>'Sabtu'];
+        $bulanIndo = ['January'=>'Januari','February'=>'Februari','March'=>'Maret','April'=>'April',
+                    'May'=>'Mei','June'=>'Juni','July'=>'Juli','August'=>'Agustus',
+                    'September'=>'September','October'=>'Oktober','November'=>'November','December'=>'Desember'];
+
+        $hariIni = $hariIndo[date('l')] . ', ' . date('d') . ' ' . $bulanIndo[date('F')] . ' ' . date('Y');
+
+        function formatTglBadge(string $tgl, array $bulanIndo): string {
+            return date('d', strtotime($tgl)) . ' ' . $bulanIndo[date('F', strtotime($tgl))] . ' ' . date('Y', strtotime($tgl));
+        }
+        ?>
+
+        <?php if ($periodeAktif): ?>
         <div class="hero-badge">
-            <i class="fa-solid fa-circle" style="font-size:0.45rem;"></i>
-            Aktif · <?= date('l, d F Y') ?>
+            <i class="fa-solid fa-circle" style="font-size:0.45rem;color:var(--green);"></i>
+            Aktif &nbsp;·&nbsp; <?= $hariIni ?>
+            <span class="hero-badge-desktop-extra">
+                &nbsp;·&nbsp; <?= formatTglBadge($periodeAktif['tanggal_mulai'], $bulanIndo) ?> — <?= formatTglBadge($periodeAktif['tanggal_selesai'], $bulanIndo) ?>
+            </span>
+            <span class="hero-badge-row2">
+                <?= formatTglBadge($periodeAktif['tanggal_mulai'], $bulanIndo) ?> — <?= formatTglBadge($periodeAktif['tanggal_selesai'], $bulanIndo) ?>
+            </span>
         </div>
+        <?php else: ?>
+        
+        <div class="hero-badge" style="border-color:rgba(239,68,68,0.3);color:var(--red);">
+            <i class="fa-solid fa-circle" style="font-size:0.45rem;color:var(--red);"></i>
+            Tidak Aktif
+            <?php if ($adaPeriodeLewat): ?>
+                <span class="hero-badge-desktop-extra">&nbsp;·&nbsp; <span style="color:var(--text3);">Periode telah berakhir</span></span>
+            <?php endif; ?>
+            &nbsp;·&nbsp; <span style="color:var(--text2);"><?= $hariIni ?></span>
+            <span class="hero-badge-desktop-extra">
+                &nbsp;·&nbsp;
+                <?php if ($periodeBerikutnya): ?>
+                    <span style="color:var(--text3);">Periode selanjutnya: <?= formatTglBadge($periodeBerikutnya['tanggal_mulai'], $bulanIndo) ?></span>
+                <?php else: ?>
+                    <span style="color:var(--text3);">Tunggu informasi PKL dari sekolah/jurusan masing-masing</span>
+                <?php endif; ?>
+            </span>
+            <span class="hero-badge-row2" style="color:var(--text3);">
+                <?php if ($adaPeriodeLewat): ?>Periode telah berakhir · <?php endif; ?>
+                <?php if ($periodeBerikutnya): ?>
+                    Mulai: <?= formatTglBadge($periodeBerikutnya['tanggal_mulai'], $bulanIndo) ?>
+                <?php else: ?>
+                    Tunggu info PKL dari sekolah/jurusan
+                <?php endif; ?>
+            </span>
+        </div>
+        <?php endif; ?>
     </div>
     <!-- Tombol utama -->
     <div class="hero-btns">

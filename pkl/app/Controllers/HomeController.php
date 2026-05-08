@@ -18,8 +18,26 @@ class HomeController
         $isLoggedIn = \App\Core\Auth::check();
 
         // ── Periode aktif ──
-        $periodeAktif = $db->queryOne("SELECT id FROM periode_pkl WHERE aktif = 1 LIMIT 1");
-        $periodeId    = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+        $periodeAktif = $db->queryOne(
+            "SELECT id, nama_periode, tanggal_mulai, tanggal_selesai FROM periode_pkl 
+            WHERE aktif = 1 AND CURDATE() BETWEEN tanggal_mulai AND tanggal_selesai LIMIT 1"
+        );
+        $periodeId = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+
+        // Jika tidak aktif: cek apakah periode (aktif=1) sudah lewat atau belum mulai,
+        // lalu cari periode berikutnya
+        $periodeBerikutnya = null;
+        $adaPeriodeLewat   = false;
+        if (!$periodeAktif) {
+            $adaPeriodeLewat = (bool)$db->queryOne(
+                "SELECT id FROM periode_pkl WHERE aktif = 1 AND tanggal_selesai < CURDATE() LIMIT 1"
+            );
+
+            $periodeBerikutnya = $db->queryOne(
+                "SELECT tanggal_mulai FROM periode_pkl 
+                WHERE tanggal_mulai > CURDATE() ORDER BY tanggal_mulai ASC LIMIT 1"
+            );
+        }
         
         // ── Stat cards ──
         $totalSiswa      = (int)($db->queryOne("SELECT COUNT(*) as n FROM datasiswa WHERE periode_id = ?", [$periodeId])['n'] ?? 0);
@@ -187,6 +205,9 @@ class HomeController
             'waBotNumber'     => $waBotNumber,
             'today'           => $today,
             'isLoggedIn'      => $isLoggedIn,
+            'periodeAktif'      => $periodeAktif,
+            'periodeBerikutnya' => $periodeBerikutnya,
+            'adaPeriodeLewat'   => $adaPeriodeLewat,
         ]);
     }
 }
