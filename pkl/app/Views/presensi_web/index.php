@@ -176,6 +176,36 @@ CSS;
 
 <div class="pw-wrap">
 
+<?php if (!$gateway['buka']): ?>
+    <?php
+    $periode           = $gateway['periode'] ?? null;
+    $periodeBerikutnya = $gateway['periodeBerikutnya'] ?? null;
+    $rentang = $periode
+        ? \App\Api\Helpers\GatewayHelper::formatTgl($periode['tanggal_mulai']) . ' — ' . \App\Api\Helpers\GatewayHelper::formatTgl($periode['tanggal_selesai'])
+        : null;
+    ?>
+    <div style="background:var(--red-bg);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:1.25rem 1.25rem;margin-bottom:1rem;text-align:center;">
+        <div style="font-size:1.5rem;margin-bottom:0.5rem;">🔒</div>
+        <div style="font-weight:700;color:var(--red);margin-bottom:0.35rem;">Presensi Web Ditutup</div>
+        <?php if ($rentang): ?>
+        <div style="font-size:0.82rem;color:var(--text2);margin-bottom:0.25rem;">
+            Periode <strong><?= htmlspecialchars($periode['nama_periode']) ?></strong>
+            (<?= $rentang ?>) telah berakhir.
+        </div>
+        <?php endif; ?>
+        <?php if ($periodeBerikutnya): ?>
+        <div style="font-size:0.82rem;color:var(--text3);">
+            Akan dibuka kembali mulai
+            <strong style="color:var(--text2);"><?= \App\Api\Helpers\GatewayHelper::formatTgl($periodeBerikutnya['tanggal_mulai']) ?></strong>
+        </div>
+        <?php else: ?>
+        <div style="font-size:0.82rem;color:var(--text3);">
+            Tunggu informasi PKL dari sekolah/jurusan masing-masing.
+        </div>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
+
     <!-- Step 1: Input NIS -->
     <div class="step-card" id="step1">
         <div class="step-header">

@@ -19,6 +19,8 @@ $extraCss = <<<CSS
 .notif-row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-top:0.5rem; }
 .notif-row label { font-size:0.75rem; color:var(--text3); }
 select.setting-select { padding:0.4rem 0.65rem; border-radius:6px; border:1px solid var(--border2); background:var(--bg3); color:var(--text); font-size:0.82rem; }
+.gateway-mode-btn { padding:0.4rem 1rem; border-radius:6px; border:1px solid var(--border2); background:var(--bg3); color:var(--text2); font-size:0.82rem; font-weight:600; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:0.35rem; }
+.gateway-mode-btn.gm-active { background:var(--blue-bg); color:var(--blue); border-color:rgba(79,142,247,0.4); }
 </style>
 CSS;
 ?>
@@ -257,6 +259,99 @@ CSS;
 
 </div>
 
+<!-- Gateway Presensi -->
+<div class="col-12">
+    <div class="card-app">
+        <div class="card-header-app">
+            <span class="card-title"><i class="fa-solid fa-door-open me-1" style="color:var(--orange)"></i> Gateway Presensi</span>
+            <span style="font-size:0.75rem;color:var(--text3);">Kontrol akses presensi WA dan Web</span>
+        </div>
+        <div class="card-body-app">
+            <p style="font-size:0.83rem;color:var(--text2);margin-bottom:1.25rem;line-height:1.6;">
+                Mode <strong>Auto</strong>: akses presensi mengikuti rentang periode aktif + toleransi yang telah diatur.<br>
+                Mode <strong>Manual</strong>: admin menentukan sendiri apakah presensi dibuka atau ditutup, terlepas dari periode.
+            </p>
+            <div class="row g-3">
+
+                <!-- Gateway WA -->
+                <div class="col-12 col-md-6">
+                    <div class="notif-card">
+                        <div class="notif-card-title">
+                            <i class="fa-brands fa-whatsapp" style="color:var(--green);"></i>
+                            Presensi via WA Bot
+                        </div>
+                        <div class="setting-section">
+                            <label class="setting-label">Mode</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <button type="button" class="gateway-mode-btn <?= $settings['gateway_wa_mode'] === 'auto' ? 'gm-active' : '' ?>"
+                                        id="gw_wa_auto" onclick="setGatewayMode('wa','auto')">
+                                    <i class="fa-solid fa-rotate"></i> Auto
+                                </button>
+                                <button type="button" class="gateway-mode-btn <?= $settings['gateway_wa_mode'] === 'manual' ? 'gm-active' : '' ?>"
+                                        id="gw_wa_manual" onclick="setGatewayMode('wa','manual')">
+                                    <i class="fa-solid fa-hand"></i> Manual
+                                </button>
+                            </div>
+                        </div>
+                        <div class="setting-section" id="gw_wa_manual_section" style="<?= $settings['gateway_wa_mode'] === 'manual' ? '' : 'display:none;' ?>">
+                            <label class="setting-label">Status Manual</label>
+                            <div class="toggle-wrap">
+                                <label class="toggle">
+                                    <input type="checkbox" id="gatewayWaAktif" <?= $settings['gateway_wa_aktif'] === '1' ? 'checked' : '' ?>>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span style="font-size:0.82rem;font-weight:600;">Buka Presensi WA</span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="gatewayWaMode" value="<?= htmlspecialchars($settings['gateway_wa_mode']) ?>">
+                    </div>
+                </div>
+
+                <!-- Gateway Web -->
+                <div class="col-12 col-md-6">
+                    <div class="notif-card">
+                        <div class="notif-card-title">
+                            <i class="fa-solid fa-globe" style="color:var(--yellow);"></i>
+                            Presensi via Web
+                        </div>
+                        <div class="setting-section">
+                            <label class="setting-label">Mode</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <button type="button" class="gateway-mode-btn <?= $settings['gateway_web_mode'] === 'auto' ? 'gm-active' : '' ?>"
+                                        id="gw_web_auto" onclick="setGatewayMode('web','auto')">
+                                    <i class="fa-solid fa-rotate"></i> Auto
+                                </button>
+                                <button type="button" class="gateway-mode-btn <?= $settings['gateway_web_mode'] === 'manual' ? 'gm-active' : '' ?>"
+                                        id="gw_web_manual" onclick="setGatewayMode('web','manual')">
+                                    <i class="fa-solid fa-hand"></i> Manual
+                                </button>
+                            </div>
+                        </div>
+                        <div class="setting-section" id="gw_web_manual_section" style="<?= $settings['gateway_web_mode'] === 'manual' ? '' : 'display:none;' ?>">
+                            <label class="setting-label">Status Manual</label>
+                            <div class="toggle-wrap">
+                                <label class="toggle">
+                                    <input type="checkbox" id="gatewayWebAktif" <?= $settings['gateway_web_aktif'] === '1' ? 'checked' : '' ?>>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span style="font-size:0.82rem;font-weight:600;">Buka Presensi Web</span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="gatewayWebMode" value="<?= htmlspecialchars($settings['gateway_web_mode']) ?>">
+                    </div>
+                </div>
+
+            </div>
+            <div style="margin-top:1rem;">
+                <button class="btn-app btn-primary-app" onclick="simpanGateway()">
+                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Gateway
+                </button>
+                <div class="result-box" id="gatewayResult" style="margin-top:0.75rem;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php
 $content = ob_get_clean();
 
@@ -297,6 +392,35 @@ function simpanNotifikasi() {
     fd.append('notif_walikelas_jam',    document.getElementById('notifWalikelasJam').value);
 
     fetch('/pengaturan/notifikasi', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            res.className    = 'result-box ' + (data.status === 'success' ? 'success' : 'error');
+            res.innerHTML    = (data.status === 'success' ? '✅ ' : '❌ ') + data.message;
+            res.style.display = 'block';
+        })
+        .catch(() => { res.className='result-box error'; res.innerHTML='❌ Gagal menghubungi server.'; res.style.display='block'; });
+}
+
+function setGatewayMode(channel, mode) {
+    document.getElementById('gateway' + (channel === 'wa' ? 'Wa' : 'Web') + 'Mode').value = mode;
+    ['auto','manual'].forEach(m => {
+        const btn = document.getElementById('gw_' + channel + '_' + m);
+        btn.classList.toggle('gm-active', m === mode);
+    });
+    const manualSection = document.getElementById('gw_' + channel + '_manual_section');
+    manualSection.style.display = mode === 'manual' ? 'block' : 'none';
+}
+
+function simpanGateway() {
+    const res = document.getElementById('gatewayResult');
+    const fd  = new FormData();
+
+    fd.append('gateway_wa_mode',   document.getElementById('gatewayWaMode').value);
+    fd.append('gateway_wa_aktif',  document.getElementById('gatewayWaAktif')?.checked ? '1' : '0');
+    fd.append('gateway_web_mode',  document.getElementById('gatewayWebMode').value);
+    fd.append('gateway_web_aktif', document.getElementById('gatewayWebAktif')?.checked ? '1' : '0');
+
+    fetch('/pengaturan/gateway', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(data => {
             res.className    = 'result-box ' + (data.status === 'success' ? 'success' : 'error');

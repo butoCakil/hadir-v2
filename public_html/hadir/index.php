@@ -195,6 +195,7 @@ $router->get('/pengaturan',          [PengaturanController::class, 'index']);
 $router->post('/pengaturan/simpan',  [PengaturanController::class, 'simpan']);
 $router->post('/pengaturan/password',[PengaturanController::class, 'gantiPassword']);
 $router->post('/pengaturan/notifikasi', [PengaturanController::class, 'notifikasi']);
+$router->post('/pengaturan/gateway',    [PengaturanController::class, 'gateway']);
 
 // ---- Arsip Periode ----
 $router->get('/arsip',                          [ArsipController::class, 'index']);

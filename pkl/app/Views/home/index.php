@@ -143,6 +143,22 @@ CSS;
                 <?= formatTglBadge($periodeAktif['tanggal_mulai'], $bulanIndo) ?> — <?= formatTglBadge($periodeAktif['tanggal_selesai'], $bulanIndo) ?>
             </span>
         </div>
+        <?php elseif ($dalamToleransi): ?>
+            <div class="hero-badge" style="background:var(--yellow-bg);border-color:rgba(245,158,11,0.3);color:var(--yellow);">
+                <i class="fa-solid fa-circle" style="font-size:0.45rem;color:var(--yellow);"></i>
+                Aktif
+                <span class="hero-badge-desktop-extra">&nbsp;·&nbsp; <span style="color:var(--text2);">Masa Toleransi</span></span>
+                &nbsp;·&nbsp; <span style="color:var(--text2);"><?= $hariIni ?></span>
+                <span class="hero-badge-desktop-extra">
+                    &nbsp;·&nbsp;
+                    <span style="color:var(--text3);">
+                        <?= formatTglBadge($periodeTolerasi['tanggal_mulai'], $bulanIndo) ?> — <?= formatTglBadge($periodeTolerasi['tanggal_selesai'], $bulanIndo) ?>
+                    </span>
+                </span>
+                <span class="hero-badge-row2" style="color:var(--text3);">
+                    Masa Toleransi &nbsp;·&nbsp; <?= formatTglBadge($periodeTolerasi['tanggal_mulai'], $bulanIndo) ?> — <?= formatTglBadge($periodeTolerasi['tanggal_selesai'], $bulanIndo) ?>
+                </span>
+            </div>
         <?php else: ?>
         
         <div class="hero-badge" style="border-color:rgba(239,68,68,0.3);color:var(--red);">

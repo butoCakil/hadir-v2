@@ -108,11 +108,51 @@ class WabotHandler
     }
 
     private function route(
-        string $number, string $pushName, string $message,
-        ?string $mediaUrl, string $messageType
+    string $number, string $pushName, string $message,
+    ?string $mediaUrl, string $messageType
     ): ?string {
         $msgLower = strtolower(trim($message));
         $nohp62   = WaSender::normalisasi0ke62($number);
+
+        // ── 0. Cek gateway WA ──
+        $gateway = \App\Api\Helpers\GatewayHelper::cek('wa');
+        if (!$gateway['buka']) {
+            // Throttle: kirim pesan "ditutup" maksimal 1x per hari per nomor
+            $cacheKey = 'gateway_wa_notif_' . $number;
+            $today    = date('Y-m-d');
+            $lastSent = $this->db->queryOne(
+                "SELECT `value` FROM pengaturan WHERE `key` = ?", [$cacheKey]
+            );
+            if (!$lastSent || $lastSent['value'] !== $today) {
+                // Simpan/update throttle
+                $this->db->query(
+                    "INSERT INTO pengaturan (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?",
+                    [$cacheKey, $today, $today]
+                );
+
+                $periode           = $gateway['periode'];
+                $periodeBerikutnya = $gateway['periodeBerikutnya'];
+
+                $rentang = $periode
+                    ? \App\Api\Helpers\GatewayHelper::formatTgl($periode['tanggal_mulai']) . ' — ' . \App\Api\Helpers\GatewayHelper::formatTgl($periode['tanggal_selesai'])
+                    : '—';
+
+                $hariTutup = [1=>'Senin',2='Selasa',3=>'Rabu',4=>'Kamis',5=>'Jumat',6=>'Sabtu',7=>'Minggu'];
+                $tglTutup  = $hariTutup[(int)date('N')] . ', ' . \App\Api\Helpers\GatewayHelper::formatTgl(date('Y-m-d'));
+
+                $pesanBerikutnya = '';
+                if ($periodeBerikutnya) {
+                    $pesanBerikutnya = "\n\n📅 Presensi akan dibuka kembali mulai: *" . \App\Api\Helpers\GatewayHelper::formatTgl($periodeBerikutnya['tanggal_mulai']) . "*";
+                } else {
+                    $pesanBerikutnya = "\n\n📅 Tunggu informasi PKL selanjutnya dari sekolah/jurusan masing-masing.";
+                }
+
+                return "🔒 *Presensi Ditutup*\n\n"
+                    . "Presensi untuk periode *{$rentang}* telah ditutup pada _{$tglTutup}_."
+                    . $pesanBerikutnya;
+            }
+            return null; // sudah diberi tahu hari ini, diam saja
+        }
 
         // ── 1. Live location ──
         if ($messageType === 'live-location' && $this->isValidCoordinate($message)) {

@@ -49,6 +49,11 @@ class PengaturanController
             'notif_walikelas_aktif'  => $this->getSetting('notif_walikelas_aktif', '1'),
             'notif_walikelas_jam'    => $this->getSetting('notif_walikelas_jam', '08:00'),
             'notif_walikelas_hari'   => $this->getSetting('notif_walikelas_hari', '1'),
+            // Gateway
+            'gateway_wa_mode'        => $this->getSetting('gateway_wa_mode',  'auto'),
+            'gateway_wa_aktif'       => $this->getSetting('gateway_wa_aktif', '1'),
+            'gateway_web_mode'       => $this->getSetting('gateway_web_mode', 'auto'),
+            'gateway_web_aktif'      => $this->getSetting('gateway_web_aktif','1'),
         ];
 
         $periodeAktif = $this->db->queryOne("SELECT * FROM periode_pkl WHERE aktif = 1 LIMIT 1");
@@ -73,6 +78,27 @@ class PengaturanController
         $this->setSetting('toleransi_sesudah', (string)$toleransiSesudah);
 
         Response::success([], 'Pengaturan berhasil disimpan.');
+    }
+
+    // ==========================================
+    // POST /pengaturan/gateway
+    // ==========================================
+    public function gateway(): void
+    {
+        $waMode   = $_POST['gateway_wa_mode']   ?? 'auto';
+        $waAktif  = isset($_POST['gateway_wa_aktif'])  ? '1' : '0';
+        $webMode  = $_POST['gateway_web_mode']  ?? 'auto';
+        $webAktif = isset($_POST['gateway_web_aktif']) ? '1' : '0';
+
+        if (!in_array($waMode,  ['auto', 'manual'])) $waMode  = 'auto';
+        if (!in_array($webMode, ['auto', 'manual'])) $webMode = 'auto';
+
+        $this->setSetting('gateway_wa_mode',   $waMode);
+        $this->setSetting('gateway_wa_aktif',  $waAktif);
+        $this->setSetting('gateway_web_mode',  $webMode);
+        $this->setSetting('gateway_web_aktif', $webAktif);
+
+        Response::success([], 'Pengaturan gateway berhasil disimpan.');
     }
 
     // ==========================================

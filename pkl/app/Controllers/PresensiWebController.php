@@ -25,9 +25,12 @@ class PresensiWebController
         Auth::start();
         $isLoggedIn = Auth::check();
 
+        $gateway = \App\Api\Helpers\GatewayHelper::cek('web');
+
         Response::view('presensi_web/index', [
             'title'      => 'Presensi Web',
             'isLoggedIn' => $isLoggedIn,
+            'gateway'    => $gateway,
         ]);
     }
 
@@ -36,8 +39,13 @@ class PresensiWebController
     // ==========================================
     public function cekNis(): void
     {
-        $nis = trim($_POST['nis'] ?? '');
+        $gateway = \App\Api\Helpers\GatewayHelper::cek('web');
+        if (!$gateway['buka']) {
+            Response::error('Presensi web sedang ditutup.', 403);
+            return;
+        }
 
+        $nis = trim($_POST['nis'] ?? '');
         if (!ctype_digit($nis) || !$nis) {
             Response::error('NIS hanya boleh berisi angka.', 400);
             return;

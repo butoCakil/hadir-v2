@@ -18,11 +18,33 @@ class HomeController
         $isLoggedIn = \App\Core\Auth::check();
 
         // ── Periode aktif ──
+        // Cek periode inti (tanpa toleransi)
         $periodeAktif = $db->queryOne(
             "SELECT id, nama_periode, tanggal_mulai, tanggal_selesai FROM periode_pkl 
             WHERE aktif = 1 AND CURDATE() BETWEEN tanggal_mulai AND tanggal_selesai LIMIT 1"
         );
-        $periodeId = $periodeAktif ? (int)$periodeAktif['id'] : 0;
+
+        // Jika tidak dalam periode inti, cek apakah dalam masa toleransi
+        $dalamToleransi = false;
+        $periodeTolerasi = null;
+        if (!$periodeAktif) {
+            $periodeBase = $db->queryOne(
+                "SELECT id, nama_periode, tanggal_mulai, tanggal_selesai FROM periode_pkl WHERE aktif = 1 LIMIT 1"
+            );
+            if ($periodeBase) {
+                $tolSebelum = (int)($db->queryOne("SELECT `value` FROM pengaturan WHERE `key` = 'toleransi_sebelum'")['value'] ?? 0);
+                $tolSesudah = (int)($db->queryOne("SELECT `value` FROM pengaturan WHERE `key` = 'toleransi_sesudah'")['value'] ?? 0);
+                $today      = strtotime(date('Y-m-d'));
+                $batasMulai = strtotime("-{$tolSebelum} days", strtotime($periodeBase['tanggal_mulai']));
+                $batasAkhir = strtotime("+{$tolSesudah} days", strtotime($periodeBase['tanggal_selesai']));
+                if ($today >= $batasMulai && $today <= $batasAkhir) {
+                    $dalamToleransi  = true;
+                    $periodeTolerasi = $periodeBase;
+                }
+            }
+        }
+
+        $periodeId = $periodeAktif ? (int)$periodeAktif['id'] : ($periodeTolerasi ? (int)$periodeTolerasi['id'] : 0);
 
         // Jika tidak aktif: cek apakah periode (aktif=1) sudah lewat atau belum mulai,
         // lalu cari periode berikutnya
@@ -208,6 +230,8 @@ class HomeController
             'periodeAktif'      => $periodeAktif,
             'periodeBerikutnya' => $periodeBerikutnya,
             'adaPeriodeLewat'   => $adaPeriodeLewat,
+            'dalamToleransi'    => $dalamToleransi,
+            'periodeTolerasi'   => $periodeTolerasi,
         ]);
     }
 }
