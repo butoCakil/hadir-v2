@@ -848,15 +848,17 @@ body {
             <div class="wa-bubble-meta">08.01 <i class="fa-solid fa-check-double wa-check"></i></div>
           </div>
           <div class="wa-bubble-in">
-            <div class="wa-bubble-text">📋 <span class="wa-bold">Data ditemukan:</span>
+            <div class="wa-bubble-text">━━━━━━━━━━━━━━━━━━━━
+          📄 <span class="wa-bold">DATA DITEMUKAN:</span>
+          ━━━━━━━━━━━━━━━━━━━━
+          👤 Nama  : <span class="wa-bold">Ahmad Fauzan</span>
+          🏫 Kelas : <span class="wa-bold">XII TE 1</span>
+          🆔 NIS   : <span class="wa-bold">2801</span>
 
-<span class="wa-bold">Nama  :</span> Ahmad Fauzan
-<span class="wa-bold">NIS   :</span> 2801
-<span class="wa-bold">Kelas :</span> XII TKJ 1
-<span class="wa-bold">DUDI  :</span> CV Maju Bersama
-
-Apakah data ini benar?
-Balas <span class="wa-cmd">ya</span> atau <span class="wa-cmd">tidak</span></div>
+          ❓ <span class="wa-bold">Apakah data ini benar milik kamu?</span>
+          ✍️ Balas dengan ketik:
+          <span class="wa-cmd">ya</span> – untuk konfirmasi pendaftaran
+          <span class="wa-cmd">tidak</span> – jika data salah</div>
             <div class="wa-bubble-meta">08.01</div>
           </div>
           <div class="wa-bubble-out">
@@ -864,11 +866,15 @@ Balas <span class="wa-cmd">ya</span> atau <span class="wa-cmd">tidak</span></div
             <div class="wa-bubble-meta">08.02 <i class="fa-solid fa-check-double wa-check"></i></div>
           </div>
           <div class="wa-bubble-in">
-            <div class="wa-bubble-text">✅ <span class="wa-bold">Berhasil didaftarkan!</span>
+            <div class="wa-bubble-text">✅ <span class="wa-bold">Pendaftaran Berhasil!</span>
 
-Nomor WA-mu sudah terhubung ke akun <span class="wa-bold">Ahmad Fauzan (2801)</span>.
+          Nomor <span class="wa-bold">08xxx-xxxx-xxxx</span> telah didaftarkan atas nama:
+          👤 <span class="wa-bold">Ahmad Fauzan</span>
+          🏫 <span class="wa-bold">Kelas:</span> XII TE 1
 
-Ketik <span class="wa-cmd">info</span> untuk melihat semua perintah.</div>
+          Sekarang kamu bisa melakukan presensi PKL.
+
+          Ketik <span class="wa-cmd">1</span> untuk panduan presensi.</div>
             <div class="wa-bubble-meta">08.02</div>
           </div>
         </div>
@@ -883,15 +889,24 @@ Ketik <span class="wa-cmd">info</span> untuk melihat semua perintah.</div>
             <div class="wa-bubble-meta">07.45 <i class="fa-solid fa-check-double wa-check"></i></div>
           </div>
           <div class="wa-bubble-in">
-            <div class="wa-bubble-text">✅ <span class="wa-bold">Presensi Berhasil!</span>
+            <div class="wa-bubble-text">✅ Presensi Berhasil
 
-<span class="wa-bold">Nama      :</span> Ahmad Fauzan
-<span class="wa-bold">Tanggal   :</span> Kamis, 17 Apr 2026
-<span class="wa-bold">Waktu     :</span> 07:45 WIB
-<span class="wa-bold">Keterangan:</span> Masuk
-<span class="wa-bold">Catatan   :</span> Memasang instalasi panel listrik
+          🗓️ Status   : Masuk
+          📝 Catatan  : Memasang instalasi panel listrik
+          👤 Nama     : Ahmad Fauzan
+          🏫 Kelas    : XII TKJ 1
 
-Semangat PKL-nya! 💪</div>
+          ⏰ Waktu    : Kamis, 17 April 2026
+          Pukul 07:45:00
+
+          📊 Lihat rekap presensi kamu, bisa balas dengan ketik <span class="wa-cmd">cek</span> atau klik link ini:
+          pklbos.smknbansari.sch.id/?akses=detail&nis=2801
+
+          ℹ️ Fitur Lupa Absen sudah aktif.
+          Balas dengan ketik <span class="wa-cmd">2</span> untuk petunjuk penggunaannya.
+
+          ℹ️ Fitur Batal Absen sudah aktif.
+          Balas dengan ketik <span class="wa-cmd">batal</span> untuk petunjuk penggunaannya.</div>
             <div class="wa-bubble-meta">07.45</div>
           </div>
         </div>
@@ -903,14 +918,27 @@ Semangat PKL-nya! 💪</div>
             <div class="wa-bubble-meta">07.30 <i class="fa-solid fa-check-double wa-check"></i></div>
           </div>
           <div class="wa-bubble-in">
-            <div class="wa-bubble-text">✅ <span class="wa-bold">Presensi Berhasil!</span>
+            <div class="wa-bubble-text">✅ Presensi Berhasil
 
-<span class="wa-bold">Nama      :</span> Ahmad Fauzan
-<span class="wa-bold">Tanggal   :</span> Kamis, 17 Apr 2026
-<span class="wa-bold">Keterangan:</span> Sakit
-<span class="wa-bold">Catatan   :</span> Demam sejak semalam, izin tidak masuk
+          🗓️ Status   : Sakit
+          📝 Catatan  : Demam sejak semalam
+          👤 Nama     : Ahmad Fauzan
+          🏫 Kelas    : XII TKJ 1
 
-Semoga lekas sembuh ya 🙏</div>
+          ⏰ Waktu    : Kamis, 17 April 2026
+          Pukul 07:30:00
+
+          🌼 Semoga cepat sembuh dan bisa kembali beraktivitas seperti biasa.
+          Tetap jaga kesehatan ya 💪
+
+          📊 Lihat rekap presensi kamu, bisa balas dengan ketik <span class="wa-cmd">cek</span> atau klik link ini:
+          pklbos.smknbansari.sch.id/?akses=detail&nis=2801
+
+          ℹ️ Fitur Lupa Absen sudah aktif.
+          Balas dengan ketik <span class="wa-cmd">2</span> untuk petunjuk penggunaannya.
+
+          ℹ️ Fitur Batal Absen sudah aktif.
+          Balas dengan ketik <span class="wa-cmd">batal</span> untuk petunjuk penggunaannya.</div>
             <div class="wa-bubble-meta">07.30</div>
           </div>
           <div class="wa-bubble-out" style="margin-top:0.5rem;">
@@ -932,21 +960,20 @@ Semoga lekas sembuh ya 🙏</div>
             <div class="wa-bubble-photo">
               <div class="wa-photo-placeholder">🤳<span>Foto Selfie kemarin</span></div>
             </div>
-            <div class="wa-bubble-text"><span class="wa-cmd">lupa masuk 16-04-2026</span> Input data inventaris lab</div>
+            <div class="wa-bubble-text"><span class="wa-cmd">lupa Masuk 16-04-2026</span> Input data inventaris lab</div>
             <div class="wa-bubble-meta">09.10 <i class="fa-solid fa-check-double wa-check"></i></div>
           </div>
           <div class="wa-bubble-in">
-            <div class="wa-bubble-text">✅ <span class="wa-bold">Presensi Lupa Berhasil!</span>
+            <div class="wa-bubble-text">✅ Lupa Absen Berhasil Dicatat
 
-<span class="wa-bold">Nama      :</span> Ahmad Fauzan
-<span class="wa-bold">Tanggal   :</span> Rabu, 16 Apr 2026
-<span class="wa-bold">Keterangan:</span> Masuk (Lupa)
-<span class="wa-bold">Catatan   :</span> Input data inventaris lab
-
-Data sudah tercatat ✓</div>
+              📅 Tanggal    : Rabu, 16 Apr 2026
+              📝 Keterangan : Masuk
+              🙍 Nama       : Ahmad Fauzan
+              🏫 Kelas      : XII TKJ 1
+              🗒️ Catatan    : Input data inventaris lab
+              🔑 Kode       : LA3F2
+              📊 Pemakaian  : 1 dari 2 kali</div>
             <div class="wa-bubble-meta">09.10</div>
-          </div>
-          <div class="wa-bubble-in">
             <div class="wa-bubble-text">⚠️ <span class="wa-bold">Perhatian:</span> Fitur lupa presensi hanya bisa digunakan <span class="wa-bold">2x per hari</span> dan untuk hari <span class="wa-bold">sebelumnya saja.</span></div>
             <div class="wa-bubble-meta">09.10</div>
           </div>
@@ -959,17 +986,38 @@ Data sudah tercatat ✓</div>
             <div class="wa-bubble-meta">10.00 <i class="fa-solid fa-check-double wa-check"></i></div>
           </div>
           <div class="wa-bubble-in">
-            <div class="wa-bubble-text">📊 <span class="wa-bold">Rekap Presensi Ahmad Fauzan</span>
-<span class="wa-bold">Periode:</span> Apr 2026
+            <div class="wa-bubble-text">📋 Rekap Presensi
+              Nama : Ahmad Fauzan
+              Kelas: XII TKJ 1
+              NIS  : 2801
 
-✅ Masuk : 12 hari
-📝 Izin  : 1 hari
-🤒 Sakit : 1 hari
-🏖 Libur : 2 hari
-❌ Kosong : 0 hari
+              Masuk : 12 x
+              Izin  : 1 x
+              Sakit : 1 x
+              Libur : 2 x
 
-Lihat detail lengkap:
-🔗 pklbos.smknbansari.sch.id → Data Presensi</div>
+              Tgl  Apr
+              1    ✅
+              2    ✅
+              3    ✅
+              4    ✅
+              5    ✅
+              6    ➖
+              7    ➖
+              ...
+              16   🔴
+              17   🟡
+              ...
+
+              Keterangan:
+              ✅ = Masuk  🔵 = Izin
+              🟡 = Sakit  🔴 = Libur
+              ❌ = Tidak Presensi
+
+              📊 Rekap kehadiranmu bisa dilihat di:
+              🔗 pklbos.smknbansari.sch.id/?akses=detail&nis=2801
+
+              📌 Silakan buka link di atas untuk melihat detail kehadiranmu.</div>
             <div class="wa-bubble-meta">10.00</div>
           </div>
         </div>
