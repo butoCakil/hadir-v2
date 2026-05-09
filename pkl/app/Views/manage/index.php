@@ -1101,11 +1101,14 @@ function cekDuplikatDudi() {
             <div id="duplikatList" style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.75rem;">`;
 
             d.duplikat.forEach((pair, idx) => {
+                const recA = pair.recommend === 'a';
+                const recB = pair.recommend === 'b';
+
                 html += `
                 <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;" id="pair-${idx}">
-                    <div style="padding:0.4rem 1rem;border-bottom:1px solid var(--border);font-size:0.7rem;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;">
+                    <div style="padding:0.4rem 1rem;border-bottom:1px solid var(--border);font-size:0.7rem;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.25rem;">
                         <span>Kemiripan: <strong style="color:var(--yellow);">${pair.pct}%</strong></span>
-                        <span style="color:var(--text3);">Pilih yang dipertahankan (atau biarkan kosong)</span>
+                        <span style="color:var(--green);font-size:0.68rem;">✨ Field kosong akan dilengkapi otomatis dari data yang dihapus</span>
                     </div>
                     <div style="display:flex;flex-wrap:wrap;">
 
@@ -1113,17 +1116,20 @@ function cekDuplikatDudi() {
                         <label style="flex:1;min-width:200px;padding:0.65rem 1rem;cursor:pointer;border-right:1px solid var(--border);display:flex;gap:0.65rem;align-items:flex-start;transition:background 0.1s;"
                                onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
                                for="opt-${idx}-a">
-                            <input type="radio" name="pair-${idx}" id="opt-${idx}-a"
-                                   value="a" data-keep="${pair.a.id}" data-remove="${pair.b.id}"
-                                   data-nama-keep="${pair.a.nama.replace(/"/g,'&quot;')}"
-                                   data-nama-remove="${pair.b.nama.replace(/"/g,'&quot;')}"
-                                   style="margin-top:3px;accent-color:var(--green);">
+                            <input type="radio" name="pair-${idx}" ${recA ? 'checked' : ''}
+                                value="a" data-keep="${pair.a.id}" data-remove="${pair.b.id}"
+                                            data-nama-keep="${pair.a.nama.replace(/"/g,'&quot;')}"
+                                            data-nama-remove="${pair.b.nama.replace(/"/g,'&quot;')}"
+                                            style="margin-top:3px;accent-color:var(--green);">
                             <div>
-                                <div style="font-weight:600;font-size:0.83rem;">${pair.a.nama}</div>
+                                <div style="font-weight:600;font-size:0.83rem;">
+                                    ${pair.a.nama}
+                                    ${recA ? '<span style="font-size:0.65rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;">✓ Direkomendasikan</span>' : ''}
+                                </div>
                                 <div style="font-size:0.72rem;color:var(--text3);margin-top:0.1rem;">📍 ${pair.a.alamat || '-'}</div>
                                 <div style="font-size:0.72rem;color:var(--text3);">👤 ${pair.a.nama_pembimbing || '-'}</div>
                                 <div style="font-size:0.72rem;color:var(--text3);">📱 ${pair.a.nomor_telepon || '-'}</div>
-                                <div style="font-size:0.72rem;color:var(--blue);font-weight:600;">🎓 ${pair.a.jumlah_siswa} siswa</div>
+                                <div style="font-size:0.72rem;color:var(--blue);font-weight:600;">🎓 ${pair.a.jumlah_siswa} siswa · skor ${pair.skor_a}</div>
                             </div>
                         </label>
 
@@ -1131,17 +1137,20 @@ function cekDuplikatDudi() {
                         <label style="flex:1;min-width:200px;padding:0.65rem 1rem;cursor:pointer;display:flex;gap:0.65rem;align-items:flex-start;transition:background 0.1s;"
                                onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
                                for="opt-${idx}-b">
-                            <input type="radio" name="pair-${idx}" id="opt-${idx}-b"
-                                   value="b" data-keep="${pair.b.id}" data-remove="${pair.a.id}"
-                                   data-nama-keep="${pair.b.nama.replace(/"/g,'&quot;')}"
-                                   data-nama-remove="${pair.a.nama.replace(/"/g,'&quot;')}"
-                                   style="margin-top:3px;accent-color:var(--green);">
+                            <input type="radio" name="pair-${idx}" ${recB ? 'checked' : ''}
+                                value="b" data-keep="${pair.b.id}" data-remove="${pair.a.id}"
+                                            data-nama-keep="${pair.b.nama.replace(/"/g,'&quot;')}"
+                                            data-nama-remove="${pair.a.nama.replace(/"/g,'&quot;')}"
+                                            style="margin-top:3px;accent-color:var(--green);">
                             <div>
-                                <div style="font-weight:600;font-size:0.83rem;">${pair.b.nama}</div>
+                                <div style="font-weight:600;font-size:0.83rem;">
+                                    ${pair.b.nama}
+                                    ${recB ? '<span style="font-size:0.65rem;background:var(--green);color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px;">✓ Direkomendasikan</span>' : ''}
+                                </div>
                                 <div style="font-size:0.72rem;color:var(--text3);margin-top:0.1rem;">📍 ${pair.b.alamat || '-'}</div>
                                 <div style="font-size:0.72rem;color:var(--text3);">👤 ${pair.b.nama_pembimbing || '-'}</div>
                                 <div style="font-size:0.72rem;color:var(--text3);">📱 ${pair.b.nomor_telepon || '-'}</div>
-                                <div style="font-size:0.72rem;color:var(--blue);font-weight:600;">🎓 ${pair.b.jumlah_siswa} siswa</div>
+                                <div style="font-size:0.72rem;color:var(--blue);font-weight:600;">🎓 ${pair.b.jumlah_siswa} siswa · skor ${pair.skor_b}</div>
                             </div>
                         </label>
 
@@ -1156,10 +1165,13 @@ function cekDuplikatDudi() {
                 <button class="btn-app btn-success-app" onclick="eksekusiMergeDudi()">
                     <i class="fa-solid fa-check"></i> Eksekusi Pilihan
                 </button>
+                <button class="btn-app btn-primary-app" onclick="pilihSemuaRekomendasi()">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Pilih Semua Rekomendasi
+                </button>
                 <button class="btn-app btn-ghost" onclick="document.getElementById('duplikatDetail').innerHTML='';document.getElementById('duplikatResult').style.display='none';">
                     Batal
                 </button>
-                <span style="font-size:0.75rem;color:var(--text3);">Hanya pasangan yang dicentang yang akan digabung.</span>
+                <span style="font-size:0.75rem;color:var(--text3);">Radio sudah auto-dipilih. Review, lalu Eksekusi.</span>
             </div>`;
 
             det.innerHTML = html;
@@ -1215,6 +1227,16 @@ async function eksekusiMergeDudi() {
     if (berhasil > 0) {
         setTimeout(() => cekDuplikatDudi(), 800);
     }
+}
+
+function pilihSemuaRekomendasi() {
+    // Untuk pasangan yang belum ada pilihan sama sekali (skor identik), pilih 'a' sebagai fallback
+    document.querySelectorAll('#duplikatList [type=radio]').forEach(radio => {
+        const group = [...document.querySelectorAll(`[name="${radio.name}"]`)];
+        const adaChecked = group.some(r => r.checked);
+        if (!adaChecked) group[0].checked = true;
+    });
+    alert(`Semua pasangan sudah dipilih berdasarkan rekomendasi sistem.\nField kosong akan dilengkapi otomatis dari data yang digabung.\nReview sekali, lalu klik "Eksekusi Pilihan".`);
 }
 
 // ── Edit Periode ──────────────────────────────────────────

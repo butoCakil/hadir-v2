@@ -642,7 +642,8 @@ class ManageController
     {
         $semuaDudi = $this->db->query("
             SELECT dd.id, dd.nama, dd.kode, dd.alamat, dd.nomor_telepon, dd.nama_pembimbing,
-                   COUNT(DISTINCT pen.nis_siswa) as jumlah_siswa
+                dd.nama_owner, dd.keterangan, dd.link_map,
+                COUNT(DISTINCT pen.nis_siswa) as jumlah_siswa
             FROM datadudi dd
             LEFT JOIN penempatan pen ON pen.nama_dudika COLLATE utf8mb4_general_ci = dd.nama
             GROUP BY dd.id, dd.nama, dd.kode, dd.alamat, dd.nomor_telepon, dd.nama_pembimbing
@@ -660,11 +661,24 @@ class ManageController
                 $sudahCek[$pairKey] = true;
     
                 similar_text(strtolower($a['nama']), strtolower($b['nama']), $pct);
-                if ($pct >= 75) {
+                if ($pct >= 90) {
+                    $skorA = $this->hitungSkorDudi($a);
+                    $skorB = $this->hitungSkorDudi($b);
+
+                    // Skor sama → tiebreak pakai jumlah referensi di penempatan
+                    // Sesudah — pakai jumlah_siswa yang sudah ada, zero query tambahan
+                if ($skorA === $skorB) {
+                    $skorA += (int)($a['jumlah_siswa'] ?? 0);
+                    $skorB += (int)($b['jumlah_siswa'] ?? 0);
+                }
+
                     $duplikat[] = [
-                        'a'   => $a,
-                        'b'   => $b,
-                        'pct' => round($pct),
+                        'a'         => $a,
+                        'b'         => $b,
+                        'pct'       => round($pct),
+                        'skor_a'    => $skorA,
+                        'skor_b'    => $skorB,
+                        'recommend' => $skorA >= $skorB ? 'a' : 'b',
                     ];
                 }
             }
@@ -680,6 +694,19 @@ class ManageController
             ? 'Tidak ditemukan DUDI yang mirip.'
             : count($duplikat) . ' pasang DUDI terindikasi duplikat.'
         );
+    }
+
+    private function hitungSkorDudi(array $d): int
+    {
+        $skor = 0;
+        if (!empty($d['alamat']))           $skor += 3;
+        if (!empty($d['nomor_telepon']))    $skor += 2;
+        if (!empty($d['nama_pembimbing'])) $skor += 2;
+        if (!empty($d['nama_owner']))      $skor += 1;
+        if (!empty($d['keterangan']))      $skor += 1;
+        if (!empty($d['link_map']))        $skor += 1;
+        if (($d['jumlah_siswa'] ?? 0) > 0) $skor += 5;
+        return $skor;
     }
     
     // ==========================================
@@ -702,12 +729,23 @@ class ManageController
             Response::error('Data tidak ditemukan.', 404); return;
         }
     
+        // Smart merge: lengkapi field kosong di keep dari remove
+        $fields = ['alamat', 'nomor_telepon', 'nama_pembimbing', 'nama_owner', 'keterangan', 'link_map'];
+        foreach ($fields as $field) {
+            if (empty($keep[$field]) && !empty($remove[$field])) {
+                $this->db->query(
+                    "UPDATE datadudi SET $field = ? WHERE id = ?",
+                    [$remove[$field], $idKeep]
+                );
+            }
+        }
+
         // Update penempatan yang pakai nama DUDI yang dihapus → ganti ke nama yang dipertahankan
         $this->db->query(
             "UPDATE penempatan SET nama_dudika = ? WHERE nama_dudika = ?",
             [$keep['nama'], $remove['nama']]
         );
-    
+
         // Hapus DUDI duplikat
         $this->db->query("DELETE FROM datadudi WHERE id = ?", [$idRemove]);
     
