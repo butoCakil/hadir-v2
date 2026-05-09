@@ -137,7 +137,7 @@ class WabotHandler
                     ? \App\Api\Helpers\GatewayHelper::formatTgl($periode['tanggal_mulai']) . ' — ' . \App\Api\Helpers\GatewayHelper::formatTgl($periode['tanggal_selesai'])
                     : '—';
 
-                $hariTutup = [1=>'Senin',2='Selasa',3=>'Rabu',4=>'Kamis',5=>'Jumat',6=>'Sabtu',7=>'Minggu'];
+                $hariTutup = [1=>'Senin',2=>'Selasa',3=>'Rabu',4=>'Kamis',5=>'Jumat',6=>'Sabtu',7=>'Minggu'];
                 $tglTutup  = $hariTutup[(int)date('N')] . ', ' . \App\Api\Helpers\GatewayHelper::formatTgl(date('Y-m-d'));
 
                 $pesanBerikutnya = '';

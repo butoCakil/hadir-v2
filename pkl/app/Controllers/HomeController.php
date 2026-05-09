@@ -40,6 +40,7 @@ class HomeController
                 if ($today >= $batasMulai && $today <= $batasAkhir) {
                     $dalamToleransi  = true;
                     $periodeTolerasi = $periodeBase;
+                    $sisaHariToleransi = (int)ceil(($batasAkhir - $today) / 86400);
                 }
             }
         }
@@ -232,6 +233,7 @@ class HomeController
             'adaPeriodeLewat'   => $adaPeriodeLewat,
             'dalamToleransi'    => $dalamToleransi,
             'periodeTolerasi'   => $periodeTolerasi,
+            'sisaHariToleransi'    => $sisaHariToleransi ?? 0,
         ]);
     }
 }
