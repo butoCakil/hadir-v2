@@ -20,9 +20,6 @@ RewriteEngine On
 RewriteCond %{QUERY_STRING} ^nis=([0-9]+)$
 RewriteRule ^presensi/detail\.php$ /info/%1? [R=301,L]
 
-# /presensi/?pembimbing=xxx → /info?pembimbing=xxx
-RewriteRule ^presensi/?$ /info [R=301,L,QSA]
-
 # /datasiswa/ → /info
 RewriteRule ^datasiswa/?$ /info [R=301,L]
 

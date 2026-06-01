@@ -502,7 +502,34 @@ $extraJs = <<<JSEOF
     const tick   = () => isDark() ? '#64748b' : '#94a3b8';
     const charts = [];
 
+    const HARI_PANJANG  = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const HARI_SINGKAT  = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+
+    function formatLabelTgl(tglStr, panjang) {
+        const d   = new Date(tglStr + 'T00:00:00');
+        const dow = panjang ? HARI_PANJANG[d.getDay()] : HARI_SINGKAT[d.getDay()];
+        const dm  = d.getDate().toString().padStart(2,'0') + '/' + (d.getMonth()+1).toString().padStart(2,'0');
+        return panjang ? [dow, dm] : [dow, dm];
+    }
+
     function baseScales() {
+        return {
+            x: {
+                grid:{color:grid()},
+                ticks:{
+                    color:tick(), font:{size:10},
+                    callback: function(val, idx) {
+                        const lbl = this.getLabelForValue(val);
+                        const lebar = this.chart.width;
+                        return formatLabelTgl(lbl, lebar > 500);
+                    }
+                }
+            },
+            y: { grid:{color:grid()}, ticks:{color:tick(),font:{size:10}}, beginAtZero:true }
+        };
+    }
+
+    function jamScales() {
         return {
             x: { grid:{color:grid()}, ticks:{color:tick(),font:{size:10}} },
             y: { grid:{color:grid()}, ticks:{color:tick(),font:{size:10}}, beginAtZero:true }
@@ -683,7 +710,7 @@ $extraJs = <<<JSEOF
                     legend: { display: false },
                     tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + (c.raw ?? 'N/A') + ' pesan' } }
                 },
-                scales: baseScales()
+                scales: jamScales()
             }
         });
         charts.push(ch);

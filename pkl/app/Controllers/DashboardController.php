@@ -48,7 +48,7 @@ class DashboardController
                 "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ? AND periode_id = ?",
                 [$tgl, $periodeId]
             )['n'] ?? 0);
-            $chartLabels[] = date('d/m', strtotime($tgl));
+            $chartLabels[] = $tgl; // kirim Y-m-d, format di JS
             $chartData[]   = $jumlah;
         }
 

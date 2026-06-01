@@ -94,7 +94,7 @@ class HomeController
             $n = (int)($db->queryOne(
                 "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ? AND periode_id = ?", [$tgl, $periodeId]
             )['n'] ?? 0);
-            $chartLabels[] = date('d/m', strtotime($tgl));
+            $chartLabels[] = $tgl;
             $chartData[]   = $n;
             $chartDow[]    = $dowTgl;
 
@@ -122,7 +122,7 @@ class HomeController
             $n   = (int)($db->queryOne(
                 "SELECT COUNT(*) as n FROM tmp WHERE DATE(timestamp) = ?", [$tgl]
             )['n'] ?? 0);
-            $waLabels[] = date('d/m', strtotime($tgl));
+            $waLabels[] = $tgl;
             $waData[]   = $n;
 
             // Rata-rata hari yang sama, abaikan hari nol
