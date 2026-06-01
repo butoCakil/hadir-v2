@@ -318,6 +318,7 @@ $content = ob_get_clean();
 
 $chartLabels  = json_encode($chartLabels);
 $chartData    = json_encode($chartData);
+$chartAvgData = json_encode($chartAvgData);
 $statMasuk    = (int)$statMasuk;
 $statIzin     = (int)$statIzin;
 $statSakit    = (int)$statSakit;
@@ -375,12 +376,24 @@ $extraJs = <<<JSEOF
     if (c1) {
         charts.push(new Chart(c1, {
             type:'bar',
-            data:{labels:{$chartLabels},datasets:[{
-                label:'Siswa',data:{$chartData},
-                backgroundColor:'rgba(79,142,247,0.25)',borderColor:'#4f8ef7',
-                borderWidth:2,borderRadius:5,borderSkipped:false
-            }]},
-            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:makeScales()}
+            data:{labels:{$chartLabels},datasets:[
+                {
+                    label:'Aktual',data:{$chartData},
+                    backgroundColor:'rgba(79,142,247,0.25)',borderColor:'#4f8ef7',
+                    borderWidth:2,borderRadius:5,borderSkipped:false,order:2
+                },
+                {
+                    label:'Rata-rata hari',data:{$chartAvgData},
+                    type:'line',borderColor:'#f59e0b',borderWidth:2,
+                    borderDash:[5,4],pointRadius:3,pointBackgroundColor:'#f59e0b',
+                    fill:false,tension:0.3,order:1,spanGaps:true
+                }
+            ]},
+            options:{responsive:true,maintainAspectRatio:false,
+                interaction:{mode:'index',intersect:false},
+                plugins:{legend:{display:false},
+                    tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.raw??'N/A')+' siswa'}}},
+                scales:makeScales()}
         }));
     }
 

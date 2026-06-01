@@ -40,16 +40,31 @@ class DashboardController
         }
 
         // ── Chart 14 hari ──
-        $chartLabels = [];
-        $chartData   = [];
+        $chartLabels  = [];
+        $chartData    = [];
+        $chartAvgData = [];
         for ($i = 13; $i >= 0; $i--) {
             $tgl    = date('Y-m-d', strtotime("-$i days"));
             $jumlah = (int)($db->queryOne(
                 "SELECT COUNT(DISTINCT nis) as n FROM presensi WHERE DATE(timestamp) = ? AND periode_id = ?",
                 [$tgl, $periodeId]
             )['n'] ?? 0);
-            $chartLabels[] = $tgl; // kirim Y-m-d, format di JS
+            $chartLabels[] = $tgl;
             $chartData[]   = $jumlah;
+
+            $avgRow = $db->queryOne(
+                "SELECT AVG(cnt) as avg FROM (
+                    SELECT DATE(timestamp) as tgl, COUNT(DISTINCT nis) as cnt
+                    FROM presensi
+                    WHERE DAYOFWEEK(timestamp) = DAYOFWEEK(?)
+                    AND DATE(timestamp) < ?
+                    AND periode_id = ?
+                    GROUP BY DATE(timestamp)
+                    HAVING cnt > 0
+                ) as sub",
+                [$tgl, $tgl, $periodeId]
+            );
+            $chartAvgData[] = $avgRow && $avgRow['avg'] ? round((float)$avgRow['avg'], 1) : null;
         }
 
         // ── Rekap per kelas hari ini ──
@@ -150,6 +165,7 @@ class DashboardController
             'statLibur'       => $statMap['libur'],
             'chartLabels'     => $chartLabels,
             'chartData'       => $chartData,
+            'chartAvgData'    => $chartAvgData,
             'rekapKelas'      => $rekapKelas,
             'belumPresensi'   => $belumPresensi,
             'waBotHariIni'    => $waBotHariIni,

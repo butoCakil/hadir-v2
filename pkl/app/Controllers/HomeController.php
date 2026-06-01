@@ -34,13 +34,13 @@ class HomeController
             if ($periodeBase) {
                 $tolSebelum = (int)($db->queryOne("SELECT `value` FROM pengaturan WHERE `key` = 'toleransi_sebelum'")['value'] ?? 0);
                 $tolSesudah = (int)($db->queryOne("SELECT `value` FROM pengaturan WHERE `key` = 'toleransi_sesudah'")['value'] ?? 0);
-                $today      = strtotime(date('Y-m-d'));
+                $todayTs    = strtotime(date('Y-m-d'));
                 $batasMulai = strtotime("-{$tolSebelum} days", strtotime($periodeBase['tanggal_mulai']));
                 $batasAkhir = strtotime("+{$tolSesudah} days", strtotime($periodeBase['tanggal_selesai']));
-                if ($today >= $batasMulai && $today <= $batasAkhir) {
+                if ($todayTs >= $batasMulai && $todayTs <= $batasAkhir) {
                     $dalamToleransi  = true;
                     $periodeTolerasi = $periodeBase;
-                    $sisaHariToleransi = (int)ceil(($batasAkhir - $today) / 86400);
+                    $sisaHariToleransi = (int)ceil(($batasAkhir - $todayTs) / 86400);
                 }
             }
         }
@@ -144,7 +144,9 @@ class HomeController
         $jamLabels  = [];
         $jamAktual  = [];
         $jamAvg     = [];
-        $dowToday   = (int)date('N'); // 1=Sen..7=Min
+        $dowToday   = (int)date('w') + 1; // MySQL DAYOFWEEK: 1=Min, 2=Sen..7=Sab
+
+        error_log('[DEBUG] dowToday=' . $dowToday . ' today=' . $today);
 
         for ($h = 6; $h <= 22; $h++) {
             $jamLabels[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00';
