@@ -151,7 +151,7 @@ ob_start();
                 <?php if (empty($waPesanTerbaru)): ?>
                 <div style="padding:1.25rem;text-align:center;color:var(--text3);font-size:0.82rem;">Belum ada aktivitas.</div>
                 <?php else: ?>
-                <div style="max-height:160px;overflow-y:auto;">
+                <div style="max-height:160px;overflow-y:auto;scrollbar-width:none;">
                     <?php foreach ($waPesanTerbaru as $w): ?>
                     <div style="display:flex;align-items:flex-start;gap:0.6rem;padding:0.45rem 1.25rem;border-bottom:1px solid var(--border);">
                         <div style="width:26px;height:26px;border-radius:50%;background:var(--green-bg);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;flex-shrink:0;">
