@@ -58,11 +58,23 @@ class PengaturanController
 
         $periodeAktif = $this->db->queryOne("SELECT * FROM periode_pkl WHERE aktif = 1 LIMIT 1");
 
+        $config      = require BASE_PATH . '/config/app.php';
+        $webhookUrl  = rtrim($config['url'], '/') . '/api/webhook.php';
+        $deviceIdRaw = $config['wa']['device_id'] ?? '';
+        $adminNoRaw  = $config['wa']['admin_number'] ?? '';
+
+        // Sensor: tampilkan sebagian saja
+        $deviceIdMasked = $this->maskValue($deviceIdRaw);
+        $adminNoMasked  = $this->maskValue($adminNoRaw);
+
         Response::view('pengaturan/index', [
-            'title'        => 'Pengaturan',
-            'user'         => Auth::user(),
-            'settings'     => $settings,
-            'periodeAktif' => $periodeAktif,
+            'title'           => 'Pengaturan',
+            'user'            => Auth::user(),
+            'settings'        => $settings,
+            'periodeAktif'    => $periodeAktif,
+            'webhookUrl'      => $webhookUrl,
+            'deviceIdMasked'  => $deviceIdMasked,
+            'adminNoMasked'   => $adminNoMasked,
         ]);
     }
 
@@ -175,5 +187,65 @@ class PengaturanController
         $this->db->query("UPDATE user SET password = ? WHERE username = ?", [$hash, $user['username']]);
 
         Response::success([], 'Password berhasil diubah. Silakan login ulang.');
+    }
+
+    // ==========================================
+    // Helper: sensor nilai (tampilkan 4 char awal, sisanya *)
+    // ==========================================
+    // Sensor Device ID: 4 awal + 6 akhir, tengah bintang (pertahankan tanda -)
+    private function maskValue(string $value): string
+    {
+        // Cek apakah UUID (ada tanda -)
+        if (str_contains($value, '-')) {
+            $parts = explode('-', $value); // misal: 933bbd2c-8931-421c-8432-8e1ba9b3d795
+            $raw   = str_replace('-', '', $value);
+            $len   = strlen($raw);
+            if ($len <= 10) return $value;
+            $masked = substr($raw, 0, 4) . str_repeat('*', $len - 10) . substr($raw, -6);
+            // Sisipkan kembali tanda - sesuai posisi UUID (8-4-4-4-12)
+            $pos    = [8, 12, 16, 20];
+            $result = '';
+            $offset = 0;
+            for ($i = 0; $i < strlen($masked); $i++) {
+                if (in_array($i, $pos)) $result .= '-';
+                $result .= $masked[$i];
+            }
+            return $result;
+        }
+
+        // Nomor/string biasa: 4 awal + 4 akhir
+        $len = strlen($value);
+        if ($len <= 8) return str_repeat('*', $len);
+        return substr($value, 0, 4) . str_repeat('*', $len - 8) . substr($value, -4);
+    }
+
+    // ==========================================
+    // POST /pengaturan/wa-config
+    // ==========================================
+    public function updateWaConfig(): void
+    {
+        $deviceId   = trim($_POST['wa_device_id']    ?? '');
+        $adminNumber = trim($_POST['wa_admin_number'] ?? '');
+
+        if (empty($deviceId) || empty($adminNumber)) {
+            Response::error('Device ID dan Nomor Admin tidak boleh kosong.'); return;
+        }
+
+        $adminNumber = preg_replace('/\D/', '', $adminNumber);
+
+        $envPath = BASE_PATH . '/.env';
+        if (!file_exists($envPath) || !is_writable($envPath)) {
+            Response::error('File .env tidak dapat diakses atau ditulis.'); return;
+        }
+
+        $content = file_get_contents($envPath);
+
+        // Replace nilai WA_DEVICE_ID dan WA_ADMIN_NUMBER
+        $content = preg_replace('/^WA_DEVICE_ID=.*/m',    'WA_DEVICE_ID=' . $deviceId,    $content);
+        $content = preg_replace('/^WA_ADMIN_NUMBER=.*/m', 'WA_ADMIN_NUMBER=' . $adminNumber, $content);
+
+        file_put_contents($envPath, $content);
+
+        Response::success([], 'Konfigurasi WA berhasil disimpan. Reload halaman untuk melihat perubahan.');
     }
 }
